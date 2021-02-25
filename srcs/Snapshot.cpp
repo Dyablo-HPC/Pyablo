@@ -251,6 +251,15 @@ int Snapshot::getNCells() {
 }
 
 /**
+ * Returns whether or not the Snapshot contains an attribute
+ * @param attribute the name of the attribute to test
+ * @returns a boolean indicating if attribute is stored in the Snapshot
+ **/
+bool Snapshot::hasAttribute(std::string attribute) {
+  return attributes.contains(attribute);
+}
+
+/**
  * Probes a location for an attribute
  * @param T the type of result
  * @param pos the position to probe
@@ -264,6 +273,11 @@ int Snapshot::getNCells() {
  **/
 template<typename T>
 T Snapshot::probeLocation(Vec pos, std::string attribute) {
+  if (!attributes.contains(attribute)) {
+    std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
+    return 0;
+  }
+
   // Retrieving cell index
   int iCell = getCellFromPosition(pos);
 
@@ -279,18 +293,16 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
   hsize_t d=1;
   hid_t memspace = H5Screate_simple(1, &d, NULL);
 
+  T value;
+
   if (data_type == H5T_NATIVE_INT) {
-    int value;
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
-    return value;
   }
   else if (data_type == H5T_NATIVE_FLOAT) {
-    float value;
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
-    return value;
   }
 
-  return 0;
+  return value;
 }
 
 /**
@@ -307,7 +319,13 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
  **/
 template<typename T>
 std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribute) {
-  // Retrieving cell indices and adding them to selection array
+  std::vector<T> out;
+  if (!attributes.contains(attribute)) {
+    std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
+    return out;
+  }
+  
+    // Retrieving cell indices and adding them to selection array
   std::cout << "Probing multiple locations [this might be long] ..." << std::endl;
   int nPos = pos.size();
   std::vector<int> iCells = getCellsFromPositions(pos);
@@ -327,7 +345,6 @@ std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribu
   hsize_t d=nPos;
   hid_t memspace = H5Screate_simple(1, &d, NULL);
 
-  std::vector<T> out;
   out.resize(nPos);
 
   if (data_type == H5T_NATIVE_INT) {

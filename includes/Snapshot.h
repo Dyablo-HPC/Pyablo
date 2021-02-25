@@ -76,6 +76,7 @@ class Snapshot {
   BoundingBox getCellBoundingBox(uint iCell);
   Vec getCellCenter(uint iCell);
   int getNCells();
+  bool hasAttribute(std::string attribute);
   
   /** Generic probing method **/
   template<typename T>

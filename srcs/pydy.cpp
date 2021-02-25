@@ -33,6 +33,7 @@ PYBIND11_MODULE(pydy, m) {
     .def("getCellCenter",         &Snapshot::getCellCenter)
     .def("getNCells",             &Snapshot::getNCells)
     .def("getUniqueCells",        &Snapshot::getUniqueCells)
+    .def("hasAttribute",          &Snapshot::hasAttribute)
 
     .def("probeDensity",       static_cast<float (Snapshot::*)(Vec)>(&Snapshot::probeDensity))
     .def("probeTotalEnergy",   static_cast<float (Snapshot::*)(Vec)>(&Snapshot::probeTotalEnergy))
