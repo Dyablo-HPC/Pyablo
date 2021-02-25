@@ -1,4 +1,5 @@
 #include "Snapshot.h"
+#include <omp.h>
 
 namespace dyablo {
 
@@ -15,6 +16,14 @@ std::map<std::string, hid_t> Snapshot::type_corresp = {
  * Closes all HDF5 handles opened during the lifetime of the Snapshot
  **/
 Snapshot::~Snapshot() {
+}
+
+/**
+ * Closes all the handles in the file
+ * This is not done in the destructor to ensure compatibility
+ * with pybind11 !
+ **/
+void Snapshot::close() {
   for (auto dh: data_handles)
     H5Dclose(dh);
 
@@ -32,6 +41,7 @@ void Snapshot::print() {
   std::cout << " . Attribute list : " << std::endl;
   for (auto [name, att]: attributes)
     std::cout << "   o " << name << " (" << att.type << ")" << std::endl;
+  std::cout << " . Analysing with " << omp_get_max_threads() << " threads" << std::endl;
 }
 
 /**
@@ -133,6 +143,7 @@ void Snapshot::addAttribute(std::string handle, std::string xpath, std::string n
     std::cout << "ERROR : Could not access attribute info at " << handle << "/" << xpath << std::endl;
     std::exit(1);
   }
+  
   Attribute att {name, type, center, att_handle};
   attributes[name] = att;
   data_handles.push_back(att_handle);
@@ -154,6 +165,31 @@ int Snapshot::getCellFromPosition(Vec pos) {
   }
 
   return -1;
+}
+
+/**
+ * Finds which elements correspond to specific locations
+ * This function can be especially long on large data sets !
+ * @param pos a vector of positions to identify
+ * @return a vector of integers corresponding to the cell ids holding the positions
+ **/
+std::vector<int> Snapshot::getCellsFromPositions(std::vector<Vec> pos) {
+  std::vector<int> res(pos.size());
+
+  int nPos = pos.size();
+  #pragma omp parallel for shared(res), schedule(dynamic)
+  for (uint iCell=0; iCell < nCells; ++iCell) {
+    auto [min, max] = getCellBoundingBox(iCell);
+
+    for (int iPos=0; iPos < nPos; ++iPos) {
+      Vec &p = pos[iPos];
+      if (min[0] <= p[0] && max[0] >= p[0] 
+        && min[1] <= p[1] && max[1] >= p[1]
+        && (nDim==2 || (min[2] <= p[2] && max[2] >= p[2])))
+      res[iPos] = iCell;
+    }
+  }  
+  return res;
 }
 
 /**
@@ -181,6 +217,29 @@ BoundingBox Snapshot::getCellBoundingBox(uint iCell) {
   }
 
   return std::make_pair(min, max);
+}
+
+/**
+ * Returns the center of the given cell
+ * @param iCell the index of the cell to probe
+ * @return a vector giving the center position of the cell iCell
+ **/
+Vec Snapshot::getCellCenter(uint iCell) {
+  Vec out{0.0};
+  for (int i=0; i < nElems; ++i) {
+    int ci = index_buffer[iCell*nElems+i];
+    float *coords = &vertex_buffer[ci*CoordSize];
+    out[0] += coords[0];
+    out[1] += coords[1];
+    if (nDim == 3)
+      out[2] += coords[2];
+  }
+
+  out[0] /= nElems;
+  out[1] /= nElems;
+  if (nDim == 3)
+    out[2] /= nElems;
+  return out;
 }
 
 /**
@@ -224,6 +283,53 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
   }
 
   return 0;
+}
+
+/**
+ * Probes multiple locations for an attribute
+ * @param T the type of result
+ * @param pos a vector of positions to probe
+ * @param attribute the name of the attribute to probe
+ * @return a vector of type T corresponding to the attribute at location pos
+ * 
+ * @todo Implement non-centered probing
+ * @todo Add smoothing/interpolation
+ * @todo Check that attribute actually exists
+ * @todo Check for h5 errors while reading
+ **/
+template<typename T>
+std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribute) {
+  // Retrieving cell indices and adding them to selection array
+  std::cout << "Probing multiple locations [this might be long] ..." << std::endl;
+  int nPos = pos.size();
+  std::vector<int> iCells = getCellsFromPositions(pos);
+
+  hsize_t select[nPos][1];
+  for (int i=0; i < nPos; ++i)
+    select[i][0] = (hsize_t)iCells[i];
+
+  Attribute &att = attributes[attribute];
+  hid_t data_type = type_corresp[att.type];
+
+  // Selecting the element in the dataset
+  herr_t status;
+  hid_t space = H5Dget_space(att.handle);
+  status = H5Sselect_elements(space, H5S_SELECT_SET, nPos, (const hsize_t *)&select);
+
+  hsize_t d=nPos;
+  hid_t memspace = H5Screate_simple(1, &d, NULL);
+
+  std::vector<T> out;
+  out.resize(nPos);
+
+  if (data_type == H5T_NATIVE_INT) {
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
+  }
+  else if (data_type == H5T_NATIVE_FLOAT) {
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
+  }
+
+  return out;
 }
 
 /** 
@@ -288,6 +394,102 @@ int Snapshot::probeLevel(Vec pos) {
  **/
 int Snapshot::probeRank(Vec pos) {
   return probeLocation<int>(pos, "rank");
+}
+
+/** 
+ * Probes multiple locations for density
+ * @param pos a vector of positions to probe
+ * @return the density at positions pos
+ **/
+std::vector<float> Snapshot::probeDensity(std::vector<Vec> pos) {
+  return probeLocation<float>(pos, "rho");
+}
+
+/** 
+ * Probes multiple locations for total energy
+ * @param pos a vector of positions to probe
+ * @return the total energy at positions pos
+ **/
+std::vector<float> Snapshot::probeTotalEnergy(std::vector<Vec> pos) {
+  return probeLocation<float>(pos, "e_tot");
+}
+
+/** 
+ * Probes multiple locations for momentum
+ * @param pos a vector of positions to probe
+ * @return the momentum at positions pos
+ **/
+std::vector<Vec> Snapshot::probeMomentum(std::vector<Vec> pos) {
+  std::vector<float> res[3];
+  res[0] = probeLocation<float>(pos, "rho_vx");
+  res[1] = probeLocation<float>(pos, "rho_vy");
+  if (nDim == 3)
+    res[2] = probeLocation<float>(pos, "rho_vz");
+
+  // Ugly af ...
+  std::vector<Vec> out;
+  for (int i=0; i < pos.size(); ++i)
+    for (int j=0; j < nDim; ++j)
+      out[i][j] = res[j][i];
+
+  return out;
+}
+
+/** 
+ * Probes multiple locations for velocity
+ * @param pos a vector of positions to probe
+ * @return the velocity at positions pos
+ **/
+std::vector<Vec> Snapshot::probeVelocity(std::vector<Vec> pos) {
+  std::vector<Vec>   res = probeMomentum(pos);
+  std::vector<float> rho = probeLocation<float>(pos, "rho");
+  for (int i=0; i < pos.size(); ++i) {
+    for (int j=0; j < nDim; ++j)
+      res[i][j] /= rho[i];
+  }
+  return res;
+}
+
+/** 
+ * Probes multiple locations for the refinement level
+ * @param pos a vector of positions to probe
+ * @return the refinement level at positions pos
+ **/
+std::vector<int> Snapshot::probeLevel(std::vector<Vec> pos) {
+  return probeLocation<int>(pos, "level");
+}
+
+/** 
+ * Probes multiple locations for the mpi-rank
+ * @param pos a vector of positions to probe
+ * @return the mpi-rank at positions pos
+ **/
+std::vector<int> Snapshot::probeRank(std::vector<Vec> pos) {
+  return probeLocation<int>(pos, "rank");
+}
+
+/**
+ * Returns the positions corresponding to the center of the cells 
+ * traversed by the points along pos
+ * @param pos a vector of positions
+ * @return the center of the unique cells along the trajectory pos
+ **/
+std::vector<Vec> Snapshot::getUniqueCells(std::vector<Vec> pos) {
+  std::vector<int> iCells = getCellsFromPositions(pos);
+  std::vector<Vec> positions;
+
+  // We put in the first element
+  int last = iCells[0];
+  positions.push_back(getCellCenter(last));
+  for (int i=1; i < iCells.size(); ++i) {
+    int iCell = iCells[i];
+    if (iCell != last) {
+      last = iCell;
+      positions.push_back(getCellCenter(iCell));
+    }
+  }
+
+  return positions;
 }
 
 }

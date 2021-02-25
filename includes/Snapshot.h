@@ -26,6 +26,10 @@ using BoundingBox = std::pair<Vec, Vec>;
  * but we do this for the moment to avoid any memory explosion for big runs
  * 
  * @todo buffer storing for probing ? Maybe do a region extraction as in yt ?
+ * @todo I'm pretty sure probeLocation can be written in a nice templated without
+ *       having to explicitely define the template when calling it ...
+ * @todo add a method that will probe a variable directly from a list of cells/cell
+ * @todo Time series
  **/
 class Snapshot {
  private:
@@ -54,6 +58,8 @@ class Snapshot {
   Snapshot() = default;
   ~Snapshot();
 
+  void close();
+
   void print();
 
   /** Snapshot reading/construction from Hdf5 **/
@@ -66,19 +72,35 @@ class Snapshot {
   
   /** General access/data retrieval **/
   int getCellFromPosition(Vec v);
+  std::vector<int> getCellsFromPositions(std::vector<Vec> v);
   BoundingBox getCellBoundingBox(uint iCell);
+  Vec getCellCenter(uint iCell);
   
   /** Generic probing method **/
   template<typename T>
   T probeLocation(Vec pos, std::string attribute);
+  template<typename T>
+  std::vector<T> probeLocation(std::vector<Vec> pos, std::string attribute);
 
   /** High-level probing functions **/
+  // Scalar functions
   float probeDensity(Vec pos);
   float probeTotalEnergy(Vec pos);
   Vec   probeMomentum(Vec pos);
   Vec   probeVelocity(Vec pos);
   int   probeLevel(Vec pos);
   int   probeRank(Vec pos);
+  
+  // Vector functions
+  std::vector<float> probeDensity(std::vector<Vec> pos);
+  std::vector<float> probeTotalEnergy(std::vector<Vec> pos);
+  std::vector<Vec>   probeMomentum(std::vector<Vec> pos);
+  std::vector<Vec>   probeVelocity(std::vector<Vec> pos);
+  std::vector<int>   probeLevel(std::vector<Vec> pos);
+  std::vector<int>   probeRank(std::vector<Vec> pos);
+  std::vector<int>   probe
+
+  std::vector<Vec> getUniqueCells(std::vector<Vec> pos);
 };
 
 }
