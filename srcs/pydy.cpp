@@ -31,6 +31,7 @@ PYBIND11_MODULE(pydy, m) {
     .def("getCellsFromPositions", &Snapshot::getCellsFromPositions)
     .def("getCellBoundingBox",    &Snapshot::getCellBoundingBox)
     .def("getCellCenter",         &Snapshot::getCellCenter)
+    .def("getNCells",             &Snapshot::getNCells)
     .def("getUniqueCells",        &Snapshot::getUniqueCells)
 
     .def("probeDensity",       static_cast<float (Snapshot::*)(Vec)>(&Snapshot::probeDensity))
@@ -39,6 +40,7 @@ PYBIND11_MODULE(pydy, m) {
     .def("probeVelocity",      static_cast<Vec   (Snapshot::*)(Vec)>(&Snapshot::probeVelocity))
     .def("probeRank",          static_cast<int   (Snapshot::*)(Vec)>(&Snapshot::probeRank))
     .def("probeLevel",         static_cast<int   (Snapshot::*)(Vec)>(&Snapshot::probeLevel))
+    .def("probeOctant",        static_cast<int   (Snapshot::*)(Vec)>(&Snapshot::probeOctant))
 
     .def("probeDensities",     static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeDensity))
     .def("probeTotalEnergies", static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeTotalEnergy))
@@ -46,6 +48,7 @@ PYBIND11_MODULE(pydy, m) {
     .def("probeVelocities",    static_cast<std::vector<Vec>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeVelocity))
     .def("probeRanks",         static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeRank))
     .def("probeLevels",        static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeLevel))
+    .def("probeOctants",       static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeOctant))
    ;
 
   m.doc() = "dyablo-analysis python bindings"; // optional module docstring

@@ -75,6 +75,7 @@ class Snapshot {
   std::vector<int> getCellsFromPositions(std::vector<Vec> v);
   BoundingBox getCellBoundingBox(uint iCell);
   Vec getCellCenter(uint iCell);
+  int getNCells();
   
   /** Generic probing method **/
   template<typename T>
@@ -90,6 +91,7 @@ class Snapshot {
   Vec   probeVelocity(Vec pos);
   int   probeLevel(Vec pos);
   int   probeRank(Vec pos);
+  int   probeOctant(Vec pos);
   
   // Vector functions
   std::vector<float> probeDensity(std::vector<Vec> pos);
@@ -98,7 +100,7 @@ class Snapshot {
   std::vector<Vec>   probeVelocity(std::vector<Vec> pos);
   std::vector<int>   probeLevel(std::vector<Vec> pos);
   std::vector<int>   probeRank(std::vector<Vec> pos);
-  std::vector<int>   probe
+  std::vector<int>   probeOctant(std::vector<Vec> pos);
 
   std::vector<Vec> getUniqueCells(std::vector<Vec> pos);
 };

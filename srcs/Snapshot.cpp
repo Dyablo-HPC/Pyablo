@@ -243,6 +243,14 @@ Vec Snapshot::getCellCenter(uint iCell) {
 }
 
 /**
+ * Returns the number of cells in the domain
+ * @return the number of cells in the domain
+ **/
+int Snapshot::getNCells() {
+  return nCells;
+}
+
+/**
  * Probes a location for an attribute
  * @param T the type of result
  * @param pos the position to probe
@@ -396,6 +404,15 @@ int Snapshot::probeRank(Vec pos) {
   return probeLocation<int>(pos, "rank");
 }
 
+/**
+ * Probes a location for the octant index
+ * @param pos a position to probe
+ * @return the octant index at position pos
+ **/
+int Snapshot::probeOctant(Vec pos) {
+  return probeLocation<int>(pos, "iOct");
+}
+
 /** 
  * Probes multiple locations for density
  * @param pos a vector of positions to probe
@@ -466,6 +483,15 @@ std::vector<int> Snapshot::probeLevel(std::vector<Vec> pos) {
  **/
 std::vector<int> Snapshot::probeRank(std::vector<Vec> pos) {
   return probeLocation<int>(pos, "rank");
+}
+
+/**
+ * Probes multiple locations for the octant index
+ * @param pos a vector of positions to probe
+ * @return the octant indices at positions pos
+ **/
+std::vector<int> Snapshot::probeOctant(std::vector<Vec> pos) {
+  return probeLocation<int>(pos, "iOct");
 }
 
 /**
