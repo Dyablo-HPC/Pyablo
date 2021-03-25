@@ -855,9 +855,14 @@ float Snapshot::getTotalEnergy() {
   // We require the density and the volume of each cell in the domain
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
-  float total_mass = 0.0f;
+  float total_energy = 0.0f;
   std::vector<float> energies;
   std::vector<float> cell_volumes;
+
+  BoundingBox bb = getDomainBoundingBox();
+  float tot_vol = 1.0;
+  for (int i=0; i < nDim; ++i)
+    tot_vol *= bb.second[i] - b.first[i];
 
   int base_id = 0;
   int end_id;
@@ -874,12 +879,12 @@ float Snapshot::getTotalEnergy() {
 
     uint nV = end_id - base_id;
     for (int i=0; i<nV; ++i)
-      total_mass += energies[i] * cell_volumes[i];
+      total_energy += energies[i] * cell_volumes[i];
 
     base_id += vec_size;
   }
 
-  return total_mass;  
+  return total_energy / tot_vol;  
 }
 
 /**
