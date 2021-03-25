@@ -21,7 +21,8 @@ set(CXX_FLAGS
 list(JOIN CXX_FLAGS " " CMAKE_CXX_FLAGS)
 
 set(SRCS srcs/XdmfReader.cpp
-         srcs/Snapshot.cpp)
+         srcs/Snapshot.cpp
+         srcs/Utils.cpp)
 
 add_library(dyablo-analysis ${SRCS})
 target_link_libraries(dyablo-analysis OpenMP::OpenMP_CXX)

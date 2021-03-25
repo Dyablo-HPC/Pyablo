@@ -30,10 +30,17 @@ PYBIND11_MODULE(pydy, m) {
     .def("getCellFromPosition",   &Snapshot::getCellFromPosition)
     .def("getCellsFromPositions", &Snapshot::getCellsFromPositions)
     .def("getCellBoundingBox",    &Snapshot::getCellBoundingBox)
-    .def("getCellCenter",         &Snapshot::getCellCenter)
     .def("getNCells",             &Snapshot::getNCells)
     .def("getUniqueCells",        &Snapshot::getUniqueCells)
     .def("hasAttribute",          &Snapshot::hasAttribute)
+    .def("getDomainBoundingBox",  &Snapshot::getDomainBoundingBox)
+
+    .def("getCellCenter",   static_cast<Vec (Snapshot::*)(uint)>(&Snapshot::getCellCenter))
+    .def("getCellsCenters", static_cast<std::vector<Vec> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellCenter))
+    .def("getCellSize",     static_cast<Vec (Snapshot::*)(uint)>(&Snapshot::getCellSize))
+    .def("getCellsSizes",   static_cast<std::vector<Vec> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellSize))
+    .def("getCellVolume",   static_cast<float (Snapshot::*)(uint)>(&Snapshot::getCellVolume))
+    .def("getCellsVolumes", static_cast<std::vector<float> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellVolume))
 
     .def("probeDensity",       static_cast<float (Snapshot::*)(Vec)>(&Snapshot::probeDensity))
     .def("probeTotalEnergy",   static_cast<float (Snapshot::*)(Vec)>(&Snapshot::probeTotalEnergy))
@@ -50,6 +57,21 @@ PYBIND11_MODULE(pydy, m) {
     .def("probeRanks",         static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeRank))
     .def("probeLevels",        static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeLevel))
     .def("probeOctants",       static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeOctant))
+  
+    .def("getDensity",  static_cast<std::vector<float> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getDensity))
+    .def("getEnergy",   static_cast<std::vector<float> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getTotalEnergy))
+    .def("getMomentum", static_cast<std::vector<Vec>   (Snapshot::*)(std::vector<uint>)>(&Snapshot::getMomentum))
+    .def("getVelocity", static_cast<std::vector<Vec>   (Snapshot::*)(std::vector<uint>)>(&Snapshot::getVelocity))
+    .def("getLevel",    static_cast<std::vector<int>   (Snapshot::*)(std::vector<uint>)>(&Snapshot::getLevel))
+    .def("getRank",     static_cast<std::vector<int>   (Snapshot::*)(std::vector<uint>)>(&Snapshot::getRank))
+    .def("getOctant",   static_cast<std::vector<int>   (Snapshot::*)(std::vector<uint>)>(&Snapshot::getOctant))
+   
+    .def("getRefinementCriterion", static_cast<float (Snapshot::*)(Vec)>(&Snapshot::getRefinementCriterion))
+    .def("getRefinementCriteria",  static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::getRefinementCriterion))
+  
+    .def("getTotalMass",   static_cast<float (Snapshot::*)()>(&Snapshot::getTotalMass))
+    .def("getTotalEnergy", static_cast<float (Snapshot::*)()>(&Snapshot::getTotalEnergy))
+    .def("getTime",        static_cast<float (Snapshot::*)()>(&Snapshot::getTime))
    ;
 
   m.doc() = "dyablo-analysis python bindings"; // optional module docstring

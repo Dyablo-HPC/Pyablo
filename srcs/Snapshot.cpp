@@ -3,6 +3,8 @@
 
 namespace dyablo {
 
+int Snapshot::vec_size = 1000000;
+
 /**
  * Static mapping between type names in xdmf file and H5T native types
  **/
@@ -50,6 +52,14 @@ void Snapshot::print() {
  **/
 void Snapshot::setName(std::string name) {
   this->name = name;
+}
+
+/**
+ * Sets the associated time of the snapshot
+ * @param time the time of the current snapshot
+ **/
+void Snapshot::setTime(float time) {
+  this->time = time;
 }
 
 /**
@@ -243,6 +253,106 @@ Vec Snapshot::getCellCenter(uint iCell) {
 }
 
 /**
+ * Returns the centers of given cells
+ * @param iCells the indices of the cells to probe
+ * @return a vector of positions corresponding to the center of the cells
+ **/
+std::vector<Vec> Snapshot::getCellCenter(std::vector<uint> iCells) {
+  uint nPos = iCells.size();
+  std::vector<Vec> out(nPos);
+  
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < nPos; ++i) {
+    uint iCell = iCells[i];
+    for (int j=0; j < nElems; ++j) {
+      int ci = index_buffer[iCell*nElems+j];
+      float *coords = &vertex_buffer[ci*CoordSize];
+      out[i][0] += coords[0];
+      out[i][1] += coords[1];
+      if (nDim == 3)
+        out[i][2] += coords[2];
+    }
+
+    out[i][0] /= nElems;
+    out[i][1] /= nElems;
+    if (nDim == 3)
+      out[i][2] /= nElems;
+  }
+
+  return out;
+}
+
+/**
+ * Returns the size of a cell
+ * @param iCell the index of the cell to probe
+ * @return a vector indicating the size of the cell along each axis
+ **/
+Vec Snapshot::getCellSize(uint iCell) {
+  BoundingBox bb = getCellBoundingBox(iCell);
+  Vec out;
+  for (int i=0; i < nDim; ++i)
+    out[i] = bb.second[i] - bb.first[i];
+  return out;
+}
+
+/**
+ * Returns the size of a list of cells
+ * @param iCells a vector of cells to probe
+ * @return a vector of Vec indicating the size of each cell probed
+ **/
+std::vector<Vec> Snapshot::getCellSize(std::vector<uint> iCells) {
+  uint nSizes = iCells.size();
+  std::vector<Vec> out(nSizes);
+  
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < nSizes; ++i) {
+    uint iCell = iCells[i];
+    out[i] = getCellSize(iCell);
+  }
+
+  return out;
+}
+
+/**
+ * Returns the volume/surface of a cell
+ * @param iCell the index of the cell to probe
+ * @return a float indicating the surface in 2D or the volume in 3D of the cell
+ **/
+float Snapshot::getCellVolume(uint iCell) {
+  BoundingBox bb = getCellBoundingBox(iCell);
+  float out = bb.second[0] - bb.first[0];
+  for (int i=1; i < nDim; ++i)
+    out *= bb.second[i] - bb.first[i];
+  return out;
+}
+
+/**
+ * Returns the volume/surface of a cell
+ * @param iCells a vector of cells to probe
+ * @return a vector of floats indicating the volume/surface of each cell probed
+ **/
+std::vector<float> Snapshot::getCellVolume(std::vector<uint> iCells) {
+  uint nSizes = iCells.size();
+  std::vector<float> out(nSizes);
+  
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < nSizes; ++i) {
+    uint iCell = iCells[i];
+    out[i] = getCellVolume(iCell);
+  }
+
+  return out;
+}
+
+/**
+ * Gets the associated time of the snapshot
+ * @return the time of the current snapshot
+ **/
+float Snapshot::getTime() {
+  return time;
+}
+
+/**
  * Returns the number of cells in the domain
  * @return the number of cells in the domain
  **/
@@ -257,6 +367,22 @@ int Snapshot::getNCells() {
  **/
 bool Snapshot::hasAttribute(std::string attribute) {
   return attributes.contains(attribute);
+}
+
+/**
+ * Returns the bounding box of the domain
+ * @note This is a very naive implementation where we consider only a cartesian-box
+ *       domain ! This will not work using other geometries
+ **/
+BoundingBox Snapshot::getDomainBoundingBox() {
+  BoundingBox out{getCellCenter(0), getCellCenter(nCells-1)};
+  Vec s0 = getCellSize(0);
+  Vec s1 = getCellSize(nCells-1);
+  for (int i=0; i < nDim; ++i) {
+    out.first[i]  -= s0[i]*0.5;
+    out.second[i] += s1[i]*0.5;
+  }
+  return out;
 }
 
 /**
@@ -306,6 +432,56 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
 }
 
 /**
+ * Probes multiple cells for an attribute
+ * @param T the type of result
+ * @param iCells a vector ids of the cells to probe
+ * @param attribute the name of the attribute to probe
+ * @return a vector of type T corresponding to the attribute at location pos
+ * 
+ * @todo Implement non-centered probing
+ * @todo Add smoothing/interpolation
+ * @todo Check that attribute actually exists
+ * @todo Check for h5 errors while reading
+ **/
+template<typename T>
+std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attribute) {
+  std::vector<T> out;
+  if (!attributes.contains(attribute)) {
+    std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
+    return out;
+  }
+  
+    // Retrieving cell indices and adding them to selection array
+  int nCells = iCells.size();
+
+  hsize_t select[nCells][1];
+  for (int i=0; i < nCells; ++i)
+    select[i][0] = (hsize_t)iCells[i];
+
+  Attribute &att = attributes[attribute];
+  hid_t data_type = type_corresp[att.type];
+
+  // Selecting the element in the dataset
+  herr_t status;
+  hid_t space = H5Dget_space(att.handle);
+  status = H5Sselect_elements(space, H5S_SELECT_SET, nCells, (const hsize_t *)&select);
+
+  hsize_t d=nCells;
+  hid_t memspace = H5Screate_simple(1, &d, NULL);
+
+  out.resize(nCells);
+
+  if (data_type == H5T_NATIVE_INT) {
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
+  }
+  else if (data_type == H5T_NATIVE_FLOAT) {
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
+  }
+
+  return out;
+}
+
+/**
  * Probes multiple locations for an attribute
  * @param T the type of result
  * @param pos a vector of positions to probe
@@ -326,7 +502,6 @@ std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribu
   }
   
     // Retrieving cell indices and adding them to selection array
-  std::cout << "Probing multiple locations [this might be long] ..." << std::endl;
   int nPos = pos.size();
   std::vector<int> iCells = getCellsFromPositions(pos);
 
@@ -461,7 +636,7 @@ std::vector<Vec> Snapshot::probeMomentum(std::vector<Vec> pos) {
     res[2] = probeLocation<float>(pos, "rho_vz");
 
   // Ugly af ...
-  std::vector<Vec> out;
+  std::vector<Vec> out(pos.size());
   for (int i=0; i < pos.size(); ++i)
     for (int j=0; j < nDim; ++j)
       out[i][j] = res[j][i];
@@ -533,6 +708,313 @@ std::vector<Vec> Snapshot::getUniqueCells(std::vector<Vec> pos) {
   }
 
   return positions;
+}
+
+/**
+ * Returns the ids of all the cells corresponding to oct iOct.
+ * @param iOct the id of the octant to retrieve
+ * @return a vector of indices corresponding to the cell ids in octant iOct
+ **/
+std::vector<int> Snapshot::getBlock(uint iOct) {
+  std::vector<int> out;
+  if (!attributes.contains("iOct")) {
+    std::cerr << "ERROR : Cannot retrieve block as octant information is not available" << std::endl;
+    std::cerr << "        in this run. To get octant information, make sure that " << std::endl;
+    std::cerr << "        output/writeVariables has iOct defined in your configuration file" << std::endl;
+    return out;
+  }
+  
+  return out;
+}
+
+/**
+ * Returns the value of the refinement criterion at position pos
+ * @param pos the position where to probe the refinement criterion
+ * @return a floating point value corresponding to the error for refinement at pos.
+ *         
+ * @note Result will be 0.0f if pos is at the edge of the domain
+ * 
+ * @todo abstract to any variable type
+ * @todo abstract to any refinement error calculation
+ **/
+float Snapshot::getRefinementCriterion(Vec pos) {
+  // Retrieving cells, sizes and domain bounding box
+  BoundingBox bb = getDomainBoundingBox();
+  uint iCell = getCellFromPosition(pos);
+  Vec  h     = getCellSize(iCell);
+
+  // Probing current location
+  float rho = probeDensity(pos);
+  float en  = probeTotalEnergy(pos);
+
+  // Spatial offsets
+  Vec off_x {h[0]*0.75f, 0.0f, 0.0f};
+  Vec off_y {0.0f, h[1]*0.75f, 0.0f};
+
+  Vec pxm = pos - off_x;
+  Vec pxp = pos + off_x;
+  Vec pym = pos - off_y;
+  Vec pyp = pos + off_y;
+
+  // We check that the positions are in the domain
+  if ( !inBoundingBox(bb, pxm, 1) || !inBoundingBox(bb, pxp, 1)
+    || !inBoundingBox(bb, pym, 2) || !inBoundingBox(bb, pyp, 2))
+    return 0.0f;
+
+  // And in 3D
+  Vec pzp, pzm;
+  if (nDim == 3) {
+    Vec off_z {0.0f, 0.0, h[2]*0.75f};
+    pzp = pos + off_z;
+    pzm = pos - off_z;
+
+    if (!inBoundingBox(bb, pzm, 3) || !inBoundingBox(bb, pzp, 3))
+      return 0.0f;
+  }
+  
+  // Probing density values on adjacent cells in 2D
+  float rho_xp = probeDensity(pxp);
+  float rho_xm = probeDensity(pxm);
+  float rho_yp = probeDensity(pym);
+  float rho_ym = probeDensity(pyp);
+
+  // And energy
+  float en_xp = probeTotalEnergy(pxp);
+  float en_xm = probeTotalEnergy(pxm);
+  float en_yp = probeTotalEnergy(pyp);
+  float en_ym = probeTotalEnergy(pym);
+  
+  // Calculating error
+  auto err_calc = [&] (float ui, float uim, float uip, float eps=0.01) {
+    float grad_L = fabs(ui - uim);
+    float grad_R = fabs(uip - ui);
+    float cd = fabs(2.0*ui) + fabs(uip) + fabs(uim);
+    float d2 = fabs(uip + uim - 2.0f*ui);
+    float Ei = d2 / (grad_L + grad_R + eps * cd);
+    return Ei;
+  };
+
+  float err = std::max({err_calc(rho, rho_xm, rho_xp),
+                        err_calc(rho, rho_ym, rho_yp),
+                        err_calc(en, en_xm, en_xp),
+                        err_calc(en, en_ym, en_yp)});
+  if (nDim == 3) {
+    float rho_zp = probeDensity(pzp);
+    float rho_zm = probeDensity(pzm);
+    float en_zp = probeTotalEnergy(pzp);
+    float en_zm = probeTotalEnergy(pzm);
+
+    err = std::max({err,
+                    err_calc(rho, rho_zm, rho_zp),
+                    err_calc(en, en_zm, en_zp)});
+  }
+
+  return err;
+}
+
+/**
+ * Returns the integrated total mass over the domain
+ * @return the total mass in the domain
+ **/
+float Snapshot::getTotalMass() {
+  // We require the density and the volume of each cell in the domain
+  // which means 8 bytes per cell (1 float for volume, 1 for density)
+  // We read everything by vectors to avoid filling the memory 
+  float total_mass = 0.0f;
+  std::vector<float> densities;
+  std::vector<float> cell_volumes;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+
+    // Filling the id array
+    std::vector<uint> cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    densities = probeCells<float>(cid, "rho");
+    cell_volumes = getCellVolume(cid);
+
+    uint nV = end_id - base_id;
+    for (int i=0; i<nV; ++i)
+      total_mass += densities[i] * cell_volumes[i];
+
+    base_id += vec_size;
+  }
+
+  return total_mass;
+}
+
+/**
+ * Returns the integrated total energy over the domain
+ * @return the total mass in the domain
+ **/
+float Snapshot::getTotalEnergy() {
+  // We require the density and the volume of each cell in the domain
+  // which means 8 bytes per cell (1 float for volume, 1 for density)
+  // We read everything by vectors to avoid filling the memory 
+  float total_mass = 0.0f;
+  std::vector<float> energies;
+  std::vector<float> cell_volumes;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+    
+    // Filling the id array
+    std::vector<uint> cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    energies = probeCells<float>(cid, "e_tot");
+    cell_volumes = getCellVolume(cid);
+
+    uint nV = end_id - base_id;
+    for (int i=0; i<nV; ++i)
+      total_mass += energies[i] * cell_volumes[i];
+
+    base_id += vec_size;
+  }
+
+  return total_mass;  
+}
+
+/**
+ * Returns the integrated kinetic energy over the domain
+ * @return the total kinetic energy in the domain
+ **/
+float Snapshot::getTotalKineticEnergy() {
+  float total_Ek = 0.0;
+  std::vector<float> densities;
+  std::vector<Vec> momentum;
+  std::vector<float> cell_volumes;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+
+    // Filling the id array
+    std::vector<uint> cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    densities = probeCells<float>(cid, "rho");
+    momentum  = probeCells<Vec>(cid, "rho");
+    
+
+    base_id += vec_size;
+  }
+
+  return total_Ek;
+}
+
+/**
+ * Returns the value of the refinement criterion at a set of positions
+ * @param pos the position vector where to probe the refinement criterion
+ * @return a vector of floating point values corresponding to the error for
+ *         refinement at each position. 
+ * 
+ * @note Result will be 0.0f for each position at the edge of the domain
+ * 
+ * @todo abstract to any variable type
+ * @todo abstract to any refinement error calculation
+ **/
+std::vector<float> Snapshot::getRefinementCriterion(std::vector<Vec> pos) {
+  uint nPos = pos.size(); 
+  std::vector<float> out(nPos);
+
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < nPos; ++i)
+    out[i] = getRefinementCriterion(pos[i]);
+  
+  return out;
+}
+
+/**
+ * Extracts density from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of densities for each cell
+ **/
+std::vector<float> Snapshot::getDensity(std::vector<uint> iCells) {
+  return probeCells<float>(iCells, "rho");
+}
+
+/**
+ * Extracts the total energy from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of energies for each cell
+ **/
+std::vector<float> Snapshot::getTotalEnergy(std::vector<uint> iCells) {
+  return probeCells<float>(iCells, "e_tot");
+}
+
+/**
+ * Extracts the momentum from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of momenta for each cell
+ **/
+std::vector<Vec> Snapshot::getMomentum(std::vector<uint> iCells) {
+  std::vector<float> res[3];
+  res[0] = probeCells<float>(iCells, "rho_vx");
+  res[1] = probeCells<float>(iCells, "rho_vy");
+  if (nDim == 3)
+    res[2] = probeCells<float>(iCells, "rho_vz");
+
+  // Ewwwww ...
+  std::vector<Vec> out(iCells.size());
+  for (uint i=0; i < iCells.size(); ++i)
+    for (int j=0; j < nDim; ++j)
+      out[i][j] = res[j][i];
+
+  return out;
+}
+
+/**
+ * Extracts the velocities from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of velocities for each cell
+ **/
+std::vector<Vec> Snapshot::getVelocity(std::vector<uint> iCells) {
+  std::vector<Vec> momentum = getMomentum(iCells);
+  std::vector<float> density = getDensity(iCells);
+  std::vector<Vec> out(iCells.size());
+
+  for (uint i=0; i < iCells.size(); ++i)
+    for (uint j=0; j < nDim; ++j)
+      out[i][j] = momentum[i][j] / density[i];
+
+  return out;
+}
+
+/**
+ * Extracts the AMR level from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of levels for each cell
+ **/
+std::vector<int> Snapshot::getLevel(std::vector<uint> iCells) {
+  return probeCells<int>(iCells, "level");
+}
+
+/**
+ * Extracts the MPI rank from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of rank for each cell
+ **/
+std::vector<int> Snapshot::getRank(std::vector<uint> iCells) {
+  return probeCells<int>(iCells, "rank");
+}
+
+/**
+ * Extracts the mesh octant from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of octant ids for each cell
+ **/
+std::vector<int> Snapshot::getOctant(std::vector<uint> iCells) {
+  return probeCells<int>(iCells, "iOct");
 }
 
 }
