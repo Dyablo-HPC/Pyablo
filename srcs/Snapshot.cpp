@@ -551,6 +551,24 @@ float Snapshot::probeTotalEnergy(Vec pos) {
 }
 
 /** 
+ * Probes a location for the pressure
+ * @param pos the position to probe
+ * @return the total energy at position pos
+ **/
+float Snapshot::probePressure(Vec pos) {
+  return probeLocation<float>(pos, "P");
+}
+
+/** 
+ * Probes a location for the Mach number
+ * @param pos the position to probe
+ * @return the Mach number of the flow at position pos
+ **/
+float Snapshot::probeMach(Vec pos) {
+  return probeLocation<float>(pos, "Mach");
+}
+
+/** 
  * Probes a location for momentum
  * @param pos the position to probe
  * @return the momentum at position pos
@@ -615,12 +633,30 @@ std::vector<float> Snapshot::probeDensity(std::vector<Vec> pos) {
 }
 
 /** 
+ * Probes multiple locations for pressure
+ * @param pos a vector of positions to probe
+ * @return the pressure at positions pos
+ **/
+std::vector<float> Snapshot::probePressure(std::vector<Vec> pos) {
+  return probeLocation<float>(pos, "P");
+}
+
+/** 
  * Probes multiple locations for total energy
  * @param pos a vector of positions to probe
  * @return the total energy at positions pos
  **/
 std::vector<float> Snapshot::probeTotalEnergy(std::vector<Vec> pos) {
   return probeLocation<float>(pos, "e_tot");
+}
+
+/**
+ * Probes multiple locations for the Mach number
+ * @param pos a vector of positions to probe
+ * @return the Mach number of the flow at the position
+ **/
+std::vector<float> Snapshot::probeMach(std::vector<Vec> pos) {
+  return probeLocation<float>(pos, "Mach");
 }
 
 /** 
@@ -862,7 +898,7 @@ float Snapshot::getTotalEnergy() {
   BoundingBox bb = getDomainBoundingBox();
   float tot_vol = 1.0;
   for (int i=0; i < nDim; ++i)
-    tot_vol *= bb.second[i] - b.first[i];
+    tot_vol *= bb.second[i] - bb.first[i];
 
   int base_id = 0;
   int end_id;
@@ -918,6 +954,60 @@ float Snapshot::getTotalKineticEnergy() {
 }
 
 /**
+ * Returns the maximum Mach number of the domain
+ * @return the maximum Mach number of the flowin the domain
+ **/
+float Snapshot::getMaxMach() {
+  float max_Mach = 0.0;
+  std::vector<float> Mach;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+
+    // Filling the id array
+    std::vector<uint> cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    Mach = probeCells<float>(cid, "Mach");
+    max_Mach = std::max(max_Mach, *std::max_element(Mach.begin(), Mach.end()));
+    
+    base_id += vec_size;
+  }
+
+  return max_Mach;
+}
+
+/**
+ * Returns the average Mach number of the domain
+ * @return the average Mach number of the flowin the domain
+ **/
+float Snapshot::getAverageMach() {
+  float avg_Mach = 0.0;
+  std::vector<float> Mach;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+
+    // Filling the id array
+    std::vector<uint> cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    Mach = probeCells<float>(cid, "Mach");
+    avg_Mach += std::accumulate(Mach.begin(), Mach.end(), 0.0);
+    
+    base_id += vec_size;
+  }
+
+  return avg_Mach / nCells;
+}
+
+/**
  * Returns the value of the refinement criterion at a set of positions
  * @param pos the position vector where to probe the refinement criterion
  * @return a vector of floating point values corresponding to the error for
@@ -949,12 +1039,30 @@ std::vector<float> Snapshot::getDensity(std::vector<uint> iCells) {
 }
 
 /**
+ * Extracts the pressure from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of pressures for each cell
+ **/
+std::vector<float> Snapshot::getPressure(std::vector<uint> iCells) {
+  return probeCells<float>(iCells, "P");
+}
+
+/**
  * Extracts the total energy from a list of cells
  * @param iCells the ids of the cells to extract
  * @return a vector of energies for each cell
  **/
 std::vector<float> Snapshot::getTotalEnergy(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "e_tot");
+}
+
+/**
+ * Extracts the Mach number from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of Mach number corresponding to the flow each cell
+ **/
+std::vector<float> Snapshot::getMach(std::vector<uint> iCells) {
+  return probeCells<float>(iCells, "Mach");
 }
 
 /**

@@ -106,7 +106,9 @@ class Snapshot {
 
   /** High-level probing methods **/
   float probeDensity(Vec pos);
+  float probePressure(Vec pos);
   float probeTotalEnergy(Vec pos);
+  float probeMach(Vec pos);
   Vec   probeMomentum(Vec pos);
   Vec   probeVelocity(Vec pos);
   int   probeLevel(Vec pos);
@@ -117,13 +119,17 @@ class Snapshot {
   float getTotalMass();
   float getTotalEnergy();
   float getTotalKineticEnergy();
+  float getMaxMach();
+  float getAverageMach();
 
   float getRefinementCriterion(Vec pos);
   std::vector<float> getRefinementCriterion(std::vector<Vec> pos);  
   
   // Vector functions
   std::vector<float> probeDensity(std::vector<Vec> pos);
+  std::vector<float> probePressure(std::vector<Vec> pos);
   std::vector<float> probeTotalEnergy(std::vector<Vec> pos);
+  std::vector<float> probeMach(std::vector<Vec> pos);
   std::vector<Vec>   probeMomentum(std::vector<Vec> pos);
   std::vector<Vec>   probeVelocity(std::vector<Vec> pos);
   std::vector<int>   probeLevel(std::vector<Vec> pos);
@@ -132,7 +138,9 @@ class Snapshot {
 
   // By cell
   std::vector<float> getDensity(std::vector<uint> iCells);
+  std::vector<float> getPressure(std::vector<uint> iCells);
   std::vector<float> getTotalEnergy(std::vector<uint> iCells);
+  std::vector<float> getMach(std::vector<uint> iCells);
   std::vector<Vec>   getMomentum(std::vector<uint> iCells);
   std::vector<Vec>   getVelocity(std::vector<uint> iCells);
   std::vector<int>   getLevel(std::vector<uint> iCells);
