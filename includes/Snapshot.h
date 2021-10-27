@@ -14,6 +14,14 @@ struct Attribute {
   hid_t handle;
 };
 
+struct VarState {
+  float rho;
+  float vx;
+  float vy;
+  float vz;
+  float prs; 
+};
+
 constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
 
 /**
@@ -31,6 +39,10 @@ constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
  * @todo Improve getRefinementCriterion by enabling the user to provide a lambda for 
  *       the calculation
  * @todo Finish getBlock when iOct writing has been corrected
+ * @todo switch static allocation of the selecters for probe/get to a heap allocation
+ *       to avoid segfaults when having large datasets 
+ * @todo How to detach EOS stuff from hardcoding ? -> Maybe the whole thing
+ *       should be directly based on the dyablo code to reuse modules as possible
  **/
 class Snapshot {
  private:
@@ -57,6 +69,7 @@ class Snapshot {
 
   static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
 
+  bool show_progress_bars;
  public:
   Snapshot() = default;
   ~Snapshot();
@@ -73,7 +86,7 @@ class Snapshot {
   void setConnectivity(std::string handle, std::string xpath, int nCells);
   void setCoordinates(std::string handle, std::string xpath, int nVertices);
   void addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center);
-  
+
   /** Cell info and access **/
   int getCellFromPosition(Vec v);
   BoundingBox getCellBoundingBox(uint iCell);
@@ -83,7 +96,7 @@ class Snapshot {
   float getTime();
 
   /** Vector access 
-   * @note: Please use thes for large query as most of them are made in parallel
+   * @note: Please use these for large query as most of them are made in parallel
    **/
   std::vector<int>   getCellsFromPositions(std::vector<Vec> v);
   std::vector<Vec>   getCellCenter(std::vector<uint> iCells);
@@ -118,6 +131,7 @@ class Snapshot {
   // Integrated quantities
   float getTotalMass();
   float getTotalEnergy();
+  float getTotalInternalEnergy(double gamma);
   float getTotalKineticEnergy();
   float getMaxMach();
   float getAverageMach();
@@ -148,6 +162,10 @@ class Snapshot {
   std::vector<int>   getOctant(std::vector<uint> iCells);
 
   std::vector<int>   getBlock(uint iOct);
+
+  std::vector<float> readAllFloat(std::string field);
+  std::vector<float> mortonSort2d(std::vector<float> vec, uint iLevel, uint bx, uint by);
+  std::vector<float> mortonSort3d(std::vector<float> vec, uint iLevel, uint bx, uint by, uint bz);
 
   // Static variable for vectorized reading
   static int vec_size;

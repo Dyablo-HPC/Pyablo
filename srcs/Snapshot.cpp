@@ -78,7 +78,7 @@ void Snapshot::setNDim(int nDim) {
  * @param filename the complete path to the hdf5 file
  **/
 void Snapshot::addH5Handle(std::string handle, std::string filename) {
-  if (!handles.contains(handle)) {
+  if (handles.count(handle) == 0) {
     hid_t hid = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     if (hid < 0) {
       std::cerr << "ERROR : Could not open file " << filename.c_str() << std::endl;
@@ -366,7 +366,7 @@ int Snapshot::getNCells() {
  * @returns a boolean indicating if attribute is stored in the Snapshot
  **/
 bool Snapshot::hasAttribute(std::string attribute) {
-  return attributes.contains(attribute);
+  return attributes.count(attribute) > 0;
 }
 
 /**
@@ -399,7 +399,7 @@ BoundingBox Snapshot::getDomainBoundingBox() {
  **/
 template<typename T>
 T Snapshot::probeLocation(Vec pos, std::string attribute) {
-  if (!attributes.contains(attribute)) {
+  if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
     return 0;
   }
@@ -446,7 +446,7 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
 template<typename T>
 std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attribute) {
   std::vector<T> out;
-  if (!attributes.contains(attribute)) {
+  if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
     return out;
   }
@@ -454,9 +454,10 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
     // Retrieving cell indices and adding them to selection array
   int nCells = iCells.size();
 
-  hsize_t select[nCells][1];
+  hsize_t* select = new hsize_t[nCells];
   for (int i=0; i < nCells; ++i)
-    select[i][0] = (hsize_t)iCells[i];
+    select[i] = (hsize_t)iCells[i];
+
 
   Attribute &att = attributes[attribute];
   hid_t data_type = type_corresp[att.type];
@@ -464,7 +465,7 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
   // Selecting the element in the dataset
   herr_t status;
   hid_t space = H5Dget_space(att.handle);
-  status = H5Sselect_elements(space, H5S_SELECT_SET, nCells, (const hsize_t *)&select);
+  status = H5Sselect_elements(space, H5S_SELECT_SET, nCells, select);
 
   hsize_t d=nCells;
   hid_t memspace = H5Screate_simple(1, &d, NULL);
@@ -477,6 +478,10 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
   else if (data_type == H5T_NATIVE_FLOAT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
+
+  delete [] select;
+  H5Sclose(memspace);
+  H5Sclose(space);
 
   return out;
 }
@@ -496,7 +501,7 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
 template<typename T>
 std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribute) {
   std::vector<T> out;
-  if (!attributes.contains(attribute)) {
+  if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
     return out;
   }
@@ -505,9 +510,9 @@ std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribu
   int nPos = pos.size();
   std::vector<int> iCells = getCellsFromPositions(pos);
 
-  hsize_t select[nPos][1];
+  hsize_t* select = new hsize_t[nPos];
   for (int i=0; i < nPos; ++i)
-    select[i][0] = (hsize_t)iCells[i];
+    select[i] = (hsize_t)iCells[i];
 
   Attribute &att = attributes[attribute];
   hid_t data_type = type_corresp[att.type];
@@ -515,7 +520,7 @@ std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribu
   // Selecting the element in the dataset
   herr_t status;
   hid_t space = H5Dget_space(att.handle);
-  status = H5Sselect_elements(space, H5S_SELECT_SET, nPos, (const hsize_t *)&select);
+  status = H5Sselect_elements(space, H5S_SELECT_SET, nPos, select);
 
   hsize_t d=nPos;
   hid_t memspace = H5Screate_simple(1, &d, NULL);
@@ -528,6 +533,10 @@ std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribu
   else if (data_type == H5T_NATIVE_FLOAT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
+
+  delete [] select;
+  H5Sclose(memspace);
+  H5Sclose(space);
 
   return out;
 }
@@ -753,7 +762,7 @@ std::vector<Vec> Snapshot::getUniqueCells(std::vector<Vec> pos) {
  **/
 std::vector<int> Snapshot::getBlock(uint iOct) {
   std::vector<int> out;
-  if (!attributes.contains("iOct")) {
+  if (attributes.count("iOct") == 0) {
     std::cerr << "ERROR : Cannot retrieve block as octant information is not available" << std::endl;
     std::cerr << "        in this run. To get octant information, make sure that " << std::endl;
     std::cerr << "        output/writeVariables has iOct defined in your configuration file" << std::endl;
@@ -893,6 +902,42 @@ float Snapshot::getTotalEnergy() {
   // We read everything by vectors to avoid filling the memory 
   float total_energy = 0.0f;
   std::vector<float> energies;
+  std::vector<float> density;
+  std::vector<float> cell_volumes;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+    
+    // Filling the id array
+    std::vector<uint> cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    energies = getTotalEnergy(cid);
+    cell_volumes = getCellVolume(cid);
+
+    uint nV = end_id - base_id;
+    for (int i=0; i<nV; ++i)
+      total_energy += energies[i] * cell_volumes[i];
+
+    base_id += vec_size;
+  }
+
+  return total_energy;  
+}
+
+/**
+ * Returns the integrated total internal energy over the domain
+ * @return the total internal energy density in the domain
+ **/
+float Snapshot::getTotalInternalEnergy(double gamma) {
+  // We require the density and the volume of each cell in the domain
+  // which means 8 bytes per cell (1 float for volume, 1 for density)
+  // We read everything by vectors to avoid filling the memory 
+  float total_energy = 0.0f;
+  std::vector<float> pressures;
   std::vector<float> cell_volumes;
 
   BoundingBox bb = getDomainBoundingBox();
@@ -910,17 +955,17 @@ float Snapshot::getTotalEnergy() {
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
-    energies = probeCells<float>(cid, "e_tot");
+    pressures = getPressure(cid);
     cell_volumes = getCellVolume(cid);
 
     uint nV = end_id - base_id;
     for (int i=0; i<nV; ++i)
-      total_energy += energies[i] * cell_volumes[i];
+      total_energy += cell_volumes[i] * pressures[i] / (gamma - 1.0);
 
     base_id += vec_size;
   }
 
-  return total_energy / tot_vol;  
+  return total_energy;  
 }
 
 /**
@@ -930,7 +975,7 @@ float Snapshot::getTotalEnergy() {
 float Snapshot::getTotalKineticEnergy() {
   float total_Ek = 0.0;
   std::vector<float> densities;
-  std::vector<Vec> momentum;
+  std::vector<Vec> momenta;
   std::vector<float> cell_volumes;
 
   int base_id = 0;
@@ -943,9 +988,17 @@ float Snapshot::getTotalKineticEnergy() {
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
-    densities = probeCells<float>(cid, "rho");
-    momentum  = probeCells<Vec>(cid, "rho");
+    densities = getDensity(cid);
+    momenta   = getMomentum(cid);
+    cell_volumes = getCellVolume(cid);
     
+    uint nV = end_id - base_id;
+    auto norm2 = [](Vec v) {
+      return v[0]*v[0]+v[1]*v[1]+v[2]*v[2];
+    };
+
+    for (int i=0; i<nV; ++i)
+      total_Ek += 0.5 * cell_volumes[i] * norm2(momenta[i]) / densities[i];
 
     base_id += vec_size;
   }
@@ -1129,5 +1182,157 @@ std::vector<int> Snapshot::getRank(std::vector<uint> iCells) {
 std::vector<int> Snapshot::getOctant(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "iOct");
 }
+
+/**
+ * Reads all the data corresponding to a field
+ * @param attribute the name of the field to read
+ * @param sort indicates if the array should be sorted by dimensions
+ * @return an array of float correponding to the linearized array of the field
+ **/
+std::vector<float> Snapshot::readAllFloat(std::string attribute) {
+  std::vector<float> res;
+
+  if (attributes.count(attribute) == 0) {
+    std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
+    return res;
+  }
+  Attribute &att = attributes[attribute];
+  hid_t data_type = type_corresp[att.type];
+  if (data_type != H5T_NATIVE_FLOAT) {
+    std::cerr << "ERROR : Datatype of " << attribute << " is not float !" << std::endl;
+    return res;
+  }
+
+  herr_t status;
+  hid_t space = H5Dget_space(att.handle);
+
+  hsize_t *select = new hsize_t[nCells];
+  for (int i=0; i < nCells; ++i) {
+    select[i] = i;
+  }
+
+  status = H5Sselect_elements(space, H5S_SELECT_SET, nCells, select);
+  delete [] select;
+
+  hsize_t d=nCells;
+  float* values = new float[nCells];
+  hid_t memspace = H5Screate_simple(1, &d, NULL); 
+
+  status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, values);
+  res.resize(nCells);
+
+  std::copy(values, values+nCells, res.begin());
+
+  delete [] values;
+  return res;
+}
+
+/**
+ * Sorts an array in 2D extracted from readAllXXXX along dimensions
+ * using morton index.
+ * @param vec the vector to sort
+ * @param iLevel the level at which we are (only works for regular grids)
+ * @param bx number of blocks along x
+ * @param by number of blocks along y
+ * @result the sorted vector
+ **/
+std::vector<float> Snapshot::mortonSort2d(std::vector<float> vec,
+                          uint iLevel, 
+                          uint bx, uint by) {
+  uint nOctPerDim = (1 << iLevel);
+  uint nOct = nOctPerDim*nOctPerDim;
+  uint chunkSize = bx*by;
+  uint Nx = bx * nOctPerDim;
+  uint Ny = by * nOctPerDim;
+
+  std::vector<float> result;
+
+  if (chunkSize * nOct != nCells) {
+    std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
+    std::cerr << " . nCells = " << nCells << std::endl;
+    std::cerr << " . cell count = " << chunkSize * nOct << std::endl;
+    return result;
+  }
+
+  // Morton encoding
+  auto splitBy2 = [](uint32_t z) {
+    uint64_t x = z & 0xffffffff;
+    x = (x | x << 16) & 0xffff0000ffff;
+    x = (x | x << 8) & 0xff00ff00ff00ff;
+    x = (x | x << 4) & 0xf0f0f0f0f0f0f0f;
+    x = (x | x << 2) & 0x3333333333333333;
+    x = (x | x << 1) & 0x5555555555555555;
+
+    return x;
+  };
+
+  for (uint iy=0; iy < Ny; ++iy) {
+    uint64_t iOy = iy / by;
+    uint iBy = iy % by;
+    for (uint ix=0; ix < Nx; ++ix) {
+      uint64_t iOx = ix / bx;
+      uint iBx = ix % bx;
+
+      uint64_t key = splitBy2(iOx) | splitBy2(iOy) << 1;
+      key *= chunkSize;
+      key += iBy * bx + iBx;
+      result.push_back(vec[key]);
+    }
+  }
+  return result;
+}
+
+std::vector<float> Snapshot::mortonSort3d(std::vector<float> vec,
+                                          uint iLevel, 
+                                          uint bx, uint by, uint bz) {
+  uint nOctPerDim = (1 << iLevel);
+  uint nOct = nOctPerDim*nOctPerDim*nOctPerDim;
+  uint chunkSize = bx*by*bz;
+  uint Nx = bx * nOctPerDim;
+  uint Ny = by * nOctPerDim;
+  uint Nz = bz * nOctPerDim;
+
+  std::vector<float> result;
+
+  if (chunkSize * nOct != nCells) {
+    std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
+    std::cerr << " . nCells = " << nCells << std::endl;
+    std::cerr << " . cell count = " << chunkSize * nOct << std::endl;
+    return result;
+  }
+
+  // Morton encoding
+  auto splitBy3 = [](uint32_t z) {
+    uint64_t x = z & 0xffffffff;
+    x = (x | x << 32) & 0x1f00000000ffff; 
+    x = (x | x << 16) & 0x1f0000ff0000ff; 
+    x = (x | x << 8) & 0x100f00f00f00f00f;
+    x = (x | x << 4) & 0x10c30c30c30c30c3; 
+    x = (x | x << 2) & 0x1249249249249249;
+
+    return x;
+  };
+
+  uint bxby = bx*by;
+  for (uint iz=0; iz < Nz; ++iz) {
+    uint64_t iOz = iz / by;
+    uint iBz = iz % by;
+    for (uint iy=0; iy < Ny; ++iy) {
+      uint64_t iOy = iy / by;
+      uint iBy = iy % by;
+      for (uint ix=0; ix < Nx; ++ix) {
+        uint64_t iOx = ix / bx;
+        uint iBx = ix % bx;
+
+        uint64_t key = splitBy3(iOx) | splitBy3(iOy) << 1 | splitBy3(iOz) << 2;
+        key *= chunkSize;
+        key += iBz * bxby + iBy * bx + iBx;
+        result.push_back(vec[key]);
+      }
+    }
+  }
+  return result;
+}
+
 
 }
