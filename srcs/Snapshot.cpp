@@ -1400,10 +1400,15 @@ std::vector<uint64_t> Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, 
     return x;
   }; 
 
+  result.resize(Nx*Ny*Nz);
+
   uint bxby = bx*by;
+  uint NxNy = Nx*Ny;
+
+  #pragma omp parallel for
   for (uint iz=0; iz < Nz; ++iz) {
-    uint64_t iOz = iz / by;
-    uint iBz = iz % by;
+    uint64_t iOz = iz / bz;
+    uint iBz = iz % bz;
     for (uint iy=0; iy < Ny; ++iy) {
       uint64_t iOy = iy / by;
       uint iBy = iy % by;
@@ -1411,10 +1416,11 @@ std::vector<uint64_t> Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, 
         uint64_t iOx = ix / bx;
         uint iBx = ix % bx;
 
+        uint64_t id = iz*NxNy + iy*Nx + ix;
         uint64_t key = splitBy3(iOx) | splitBy3(iOy) << 1 | splitBy3(iOz) << 2;
         key *= chunkSize;
         key += iBz * bxby + iBy * bx + iBx;
-        result.push_back(key);
+        result[id] = key;
       }
     }
   }
