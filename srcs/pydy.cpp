@@ -69,9 +69,11 @@ PYBIND11_MODULE(pydy, m) {
     .def("getAverageMach",               static_cast<float (Snapshot::*)()>(&Snapshot::getAverageMach))
     .def("getTime",                      static_cast<float (Snapshot::*)()>(&Snapshot::getTime))
 
-    .def("readAllFloat", static_cast<std::vector<float> (Snapshot::*)(std::string)>(&Snapshot::readAllFloat))
-    .def("mortonSort2d", static_cast<std::vector<float> (Snapshot::*)(std::vector<float>, uint, uint, uint)>(&Snapshot::mortonSort2d))
-    .def("mortonSort3d", static_cast<std::vector<float> (Snapshot::*)(std::vector<float>, uint, uint, uint, uint)>(&Snapshot::mortonSort3d))
+    .def("readAllFloat",     static_cast<std::vector<float> (Snapshot::*)(std::string)>(&Snapshot::readAllFloat))
+    .def("mortonSort2d",     static_cast<std::vector<float> (Snapshot::*)(std::vector<float>, uint, uint, uint)>(&Snapshot::mortonSort2d))
+    .def("mortonSort3d",     static_cast<std::vector<float> (Snapshot::*)(std::vector<float>, uint, uint, uint, uint)>(&Snapshot::mortonSort3d))
+    .def("getSortingMask2d", static_cast<std::vector<uint64_t> (Snapshot::*)(uint, uint, uint)>(&Snapshot::getSortingMask2d))
+    .def("getSortingMask3d", static_cast<std::vector<uint64_t> (Snapshot::*)(uint, uint, uint, uint)>(&Snapshot::getSortingMask3d))
    ;
 
   m.doc() = "dyablo-analysis python bindings"; // optional module docstring

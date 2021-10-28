@@ -1250,7 +1250,7 @@ std::vector<float> Snapshot::mortonSort2d(std::vector<float> vec,
   if (chunkSize * nOct != nCells) {
     std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
     std::cerr << " . nCells = " << nCells << std::endl;
-    std::cerr << " . cell count = " << chunkSize * nOct << std::endl;
+    std::cerr << " . cell count = " << chunkSize * nOct << "(chunk=" << chunkSize << "; nOct=" << nOct << ")" << std::endl;
     return result;
   }
 
@@ -1328,6 +1328,93 @@ std::vector<float> Snapshot::mortonSort3d(std::vector<float> vec,
         key *= chunkSize;
         key += iBz * bxby + iBy * bx + iBx;
         result.push_back(vec[key]);
+      }
+    }
+  }
+  return result;
+}
+
+std::vector<uint64_t> Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
+  std::vector<uint64_t> result;
+
+  uint nOctPerDim = (1 << iLevel);
+  uint nOct = nOctPerDim*nOctPerDim;
+  uint chunkSize = bx*by;
+  uint Nx = bx * nOctPerDim;
+  uint Ny = by * nOctPerDim;
+
+  if (chunkSize * nOct != nCells) {
+    std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
+    std::cerr << " . nCells = " << nCells << std::endl;
+    std::cerr << " . cell count = " << chunkSize * nOct << std::endl;
+    return result;
+  }
+  
+  // Morton encoding
+  auto splitBy2 = [](uint32_t z) {
+    uint64_t x = z & 0xffffffff;
+    x = (x | x << 16) & 0xffff0000ffff;
+    x = (x | x << 8) & 0xff00ff00ff00ff;
+    x = (x | x << 4) & 0xf0f0f0f0f0f0f0f;
+    x = (x | x << 2) & 0x3333333333333333;
+    x = (x | x << 1) & 0x5555555555555555;
+
+    return x;
+  }; 
+
+  for (uint iy=0; iy < Ny; ++iy) {
+    uint64_t iOy = iy / by;
+    uint iBy = iy % by;
+    for (uint ix=0; ix < Nx; ++ix) {
+      uint64_t iOx = ix / bx;
+      uint iBx = ix % bx;
+
+      uint64_t key = splitBy2(iOx) | splitBy2(iOy) << 1;
+      key *= chunkSize;
+      key += iBy * bx + iBx;
+      result.push_back(key);
+    }
+  }
+  return result;
+}
+
+std::vector<uint64_t> Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
+  std::vector<uint64_t> result;
+
+  uint nOctPerDim = (1 << iLevel);
+  uint nOct = nOctPerDim*nOctPerDim*nOctPerDim;
+  uint chunkSize = bx*by*bz;
+  uint Nx = bx * nOctPerDim;
+  uint Ny = by * nOctPerDim;
+  uint Nz = bz * nOctPerDim;
+  
+  // Morton encoding
+  auto splitBy3 = [](uint32_t z) {
+    uint64_t x = z & 0xffffffff;
+    x = (x | x << 32) & 0x1f00000000ffff; 
+    x = (x | x << 16) & 0x1f0000ff0000ff; 
+    x = (x | x << 8) & 0x100f00f00f00f00f;
+    x = (x | x << 4) & 0x10c30c30c30c30c3; 
+    x = (x | x << 2) & 0x1249249249249249;
+
+    return x;
+  }; 
+
+  uint bxby = bx*by;
+  for (uint iz=0; iz < Nz; ++iz) {
+    uint64_t iOz = iz / by;
+    uint iBz = iz % by;
+    for (uint iy=0; iy < Ny; ++iy) {
+      uint64_t iOy = iy / by;
+      uint iBy = iy % by;
+      for (uint ix=0; ix < Nx; ++ix) {
+        uint64_t iOx = ix / bx;
+        uint iBx = ix % bx;
+
+        uint64_t key = splitBy3(iOx) | splitBy3(iOy) << 1 | splitBy3(iOz) << 2;
+        key *= chunkSize;
+        key += iBz * bxby + iBy * bx + iBx;
+        result.push_back(key);
       }
     }
   }

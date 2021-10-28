@@ -163,9 +163,11 @@ class Snapshot {
 
   std::vector<int>   getBlock(uint iOct);
 
-  std::vector<float> readAllFloat(std::string field);
-  std::vector<float> mortonSort2d(std::vector<float> vec, uint iLevel, uint bx, uint by);
-  std::vector<float> mortonSort3d(std::vector<float> vec, uint iLevel, uint bx, uint by, uint bz);
+  std::vector<float>    readAllFloat(std::string field);
+  std::vector<float>    mortonSort2d(std::vector<float> vec, uint iLevel, uint bx, uint by);
+  std::vector<float>    mortonSort3d(std::vector<float> vec, uint iLevel, uint bx, uint by, uint bz);
+  std::vector<uint64_t> getSortingMask2d(uint iLevel, uint bx, uint by);
+  std::vector<uint64_t> getSortingMask3d(uint iLevel, uint bx, uint by, uint bz);
 
   // Static variable for vectorized reading
   static int vec_size;
