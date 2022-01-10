@@ -113,4 +113,31 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   return snap;
 }
 
+/**
+ * Reads a time-series from an xdmf file
+ * @param filename the path to the file to read
+ * @return A TimeSeries object
+ **/
+TimeSeries XdmfReader::readTimeSeries(std::string filename) {
+  // Extracting path to have it when needed for the hdf5 files
+  std::string path = filename.substr(0, filename.rfind("/")+1);
+  if (path == "")
+    path = "./";
+
+  // Opening xmf file
+  pugi::xml_document doc;
+  pugi::xml_parse_result result = doc.load_file(filename.c_str());
+
+  TimeSeries series;
+
+  auto xdmf     = doc.child("Xdmf");
+  auto domain   = xdmf.child("Domain");
+  auto grid     = domain.child("Grid");
+  for (auto includes : grid.children("xi:include")) {
+    std::filesystem::path ref = includes.attribute("href").value();
+    series.push_back(ref);
+  }
+  return series;
+}
+
 }

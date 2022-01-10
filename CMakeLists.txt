@@ -35,8 +35,8 @@ set(LIBS  dyablo-analysis
           OpenMP::OpenMP_CXX)
 
 # Testing stuff
-add_executable(test main.cpp)
-target_link_libraries(test PRIVATE ${LIBS})
+add_executable(dyablo-extract main.cpp)
+target_link_libraries(dyablo-extract PRIVATE ${LIBS})
 
 ##### Python module
 add_subdirectory(external/pybind11)
@@ -47,5 +47,5 @@ pybind11_extension(pydy)
 pybind11_strip(pydy)
 
 set_target_properties(pydy PROPERTIES CXX_VISIBILITY_PRESET "hidden"
-                                         CUDA_VISIBILITY_PRESET "hidden")
+                           CUDA_VISIBILITY_PRESET "hidden")
 
