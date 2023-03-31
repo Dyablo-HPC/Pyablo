@@ -183,20 +183,26 @@ int Snapshot::getCellFromPosition(Vec pos) {
  * @param pos a vector of positions to identify
  * @return a vector of integers corresponding to the cell ids holding the positions
  **/
-std::vector<int> Snapshot::getCellsFromPositions(std::vector<Vec> pos) {
-  std::vector<int> res(pos.size());
+UIntArray Snapshot::getCellsFromPositions(VecArray pos) {
+  UIntArray res(pos.size());
+  BoolArray found(pos.size(), false);
 
   int nPos = pos.size();
-  #pragma omp parallel for shared(res), schedule(dynamic)
+  #pragma omp parallel for shared(res, found), schedule(dynamic)
   for (uint iCell=0; iCell < nCells; ++iCell) {
     auto [min, max] = getCellBoundingBox(iCell);
 
     for (int iPos=0; iPos < nPos; ++iPos) {
+      if (found[iPos])
+        continue;
+
       Vec &p = pos[iPos];
       if (min[0] <= p[0] && max[0] >= p[0] 
-        && min[1] <= p[1] && max[1] >= p[1]
-        && (nDim==2 || (min[2] <= p[2] && max[2] >= p[2])))
-      res[iPos] = iCell;
+          && min[1] <= p[1] && max[1] >= p[1]
+          && (nDim==2 || (min[2] <= p[2] && max[2] >= p[2]))) {
+        res[iPos] = iCell;
+        found[iPos] = true;
+      }
     }
   }  
   return res;
@@ -257,9 +263,9 @@ Vec Snapshot::getCellCenter(uint iCell) {
  * @param iCells the indices of the cells to probe
  * @return a vector of positions corresponding to the center of the cells
  **/
-std::vector<Vec> Snapshot::getCellCenter(std::vector<uint> iCells) {
+VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
   uint nPos = iCells.size();
-  std::vector<Vec> out(nPos);
+  VecArray out(nPos);
   
   #pragma omp parallel for schedule(dynamic)
   for (int i=0; i < nPos; ++i) {
@@ -300,9 +306,9 @@ Vec Snapshot::getCellSize(uint iCell) {
  * @param iCells a vector of cells to probe
  * @return a vector of Vec indicating the size of each cell probed
  **/
-std::vector<Vec> Snapshot::getCellSize(std::vector<uint> iCells) {
+VecArray Snapshot::getCellSize(std::vector<uint> iCells) {
   uint nSizes = iCells.size();
-  std::vector<Vec> out(nSizes);
+  VecArray out(nSizes);
   
   #pragma omp parallel for schedule(dynamic)
   for (int i=0; i < nSizes; ++i) {
@@ -331,9 +337,9 @@ float Snapshot::getCellVolume(uint iCell) {
  * @param iCells a vector of cells to probe
  * @return a vector of floats indicating the volume/surface of each cell probed
  **/
-std::vector<float> Snapshot::getCellVolume(std::vector<uint> iCells) {
+RealArray Snapshot::getCellVolume(std::vector<uint> iCells) {
   uint nSizes = iCells.size();
-  std::vector<float> out(nSizes);
+  RealArray out(nSizes);
   
   #pragma omp parallel for schedule(dynamic)
   for (int i=0; i < nSizes; ++i) {
@@ -499,7 +505,7 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
  * @todo Check for h5 errors while reading
  **/
 template<typename T>
-std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribute) {
+std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
   std::vector<T> out;
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
@@ -508,7 +514,7 @@ std::vector<T> Snapshot::probeLocation(std::vector<Vec> pos, std::string attribu
   
     // Retrieving cell indices and adding them to selection array
   int nPos = pos.size();
-  std::vector<int> iCells = getCellsFromPositions(pos);
+  auto iCells = getCellsFromPositions(pos);
 
   hsize_t* select = new hsize_t[nPos];
   for (int i=0; i < nPos; ++i)
@@ -637,7 +643,7 @@ int Snapshot::probeOctant(Vec pos) {
  * @param pos a vector of positions to probe
  * @return the density at positions pos
  **/
-std::vector<float> Snapshot::probeDensity(std::vector<Vec> pos) {
+RealArray Snapshot::probeDensity(VecArray pos) {
   return probeLocation<float>(pos, "rho");
 }
 
@@ -646,7 +652,7 @@ std::vector<float> Snapshot::probeDensity(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the pressure at positions pos
  **/
-std::vector<float> Snapshot::probePressure(std::vector<Vec> pos) {
+RealArray Snapshot::probePressure(VecArray pos) {
   return probeLocation<float>(pos, "P");
 }
 
@@ -655,7 +661,7 @@ std::vector<float> Snapshot::probePressure(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the total energy at positions pos
  **/
-std::vector<float> Snapshot::probeTotalEnergy(std::vector<Vec> pos) {
+RealArray Snapshot::probeTotalEnergy(VecArray pos) {
   return probeLocation<float>(pos, "e_tot");
 }
 
@@ -664,7 +670,7 @@ std::vector<float> Snapshot::probeTotalEnergy(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the Mach number of the flow at the position
  **/
-std::vector<float> Snapshot::probeMach(std::vector<Vec> pos) {
+RealArray Snapshot::probeMach(VecArray pos) {
   return probeLocation<float>(pos, "Mach");
 }
 
@@ -673,15 +679,15 @@ std::vector<float> Snapshot::probeMach(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the momentum at positions pos
  **/
-std::vector<Vec> Snapshot::probeMomentum(std::vector<Vec> pos) {
-  std::vector<float> res[3];
+VecArray Snapshot::probeMomentum(VecArray pos) {
+  RealArray res[3];
   res[0] = probeLocation<float>(pos, "rho_vx");
   res[1] = probeLocation<float>(pos, "rho_vy");
   if (nDim == 3)
     res[2] = probeLocation<float>(pos, "rho_vz");
 
   // Ugly af ...
-  std::vector<Vec> out(pos.size());
+  VecArray out(pos.size());
   for (int i=0; i < pos.size(); ++i)
     for (int j=0; j < nDim; ++j)
       out[i][j] = res[j][i];
@@ -694,9 +700,9 @@ std::vector<Vec> Snapshot::probeMomentum(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the velocity at positions pos
  **/
-std::vector<Vec> Snapshot::probeVelocity(std::vector<Vec> pos) {
-  std::vector<Vec>   res = probeMomentum(pos);
-  std::vector<float> rho = probeLocation<float>(pos, "rho");
+VecArray Snapshot::probeVelocity(VecArray pos) {
+  VecArray  res = probeMomentum(pos);
+  RealArray rho = probeLocation<float>(pos, "rho");
   for (int i=0; i < pos.size(); ++i) {
     for (int j=0; j < nDim; ++j)
       res[i][j] /= rho[i];
@@ -709,7 +715,7 @@ std::vector<Vec> Snapshot::probeVelocity(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the refinement level at positions pos
  **/
-std::vector<int> Snapshot::probeLevel(std::vector<Vec> pos) {
+IntArray Snapshot::probeLevel(VecArray pos) {
   return probeLocation<int>(pos, "level");
 }
 
@@ -718,7 +724,7 @@ std::vector<int> Snapshot::probeLevel(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the mpi-rank at positions pos
  **/
-std::vector<int> Snapshot::probeRank(std::vector<Vec> pos) {
+IntArray Snapshot::probeRank(VecArray pos) {
   return probeLocation<int>(pos, "rank");
 }
 
@@ -727,7 +733,7 @@ std::vector<int> Snapshot::probeRank(std::vector<Vec> pos) {
  * @param pos a vector of positions to probe
  * @return the octant indices at positions pos
  **/
-std::vector<int> Snapshot::probeOctant(std::vector<Vec> pos) {
+IntArray Snapshot::probeOctant(VecArray pos) {
   return probeLocation<int>(pos, "iOct");
 }
 
@@ -737,9 +743,9 @@ std::vector<int> Snapshot::probeOctant(std::vector<Vec> pos) {
  * @param pos a vector of positions
  * @return the center of the unique cells along the trajectory pos
  **/
-std::vector<Vec> Snapshot::getUniqueCells(std::vector<Vec> pos) {
-  std::vector<int> iCells = getCellsFromPositions(pos);
-  std::vector<Vec> positions;
+VecArray Snapshot::getUniqueCells(VecArray pos) {
+  auto iCells = getCellsFromPositions(pos);
+  VecArray positions;
 
   // We put in the first element
   int last = iCells[0];
@@ -760,8 +766,8 @@ std::vector<Vec> Snapshot::getUniqueCells(std::vector<Vec> pos) {
  * @param iOct the id of the octant to retrieve
  * @return a vector of indices corresponding to the cell ids in octant iOct
  **/
-std::vector<int> Snapshot::getBlock(uint iOct) {
-  std::vector<int> out;
+IntArray Snapshot::getBlock(uint iOct) {
+  IntArray out;
   if (attributes.count("iOct") == 0) {
     std::cerr << "ERROR : Cannot retrieve block as octant information is not available" << std::endl;
     std::cerr << "        in this run. To get octant information, make sure that " << std::endl;
@@ -866,8 +872,8 @@ float Snapshot::getTotalMass() {
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
   float total_mass = 0.0f;
-  std::vector<float> densities;
-  std::vector<float> cell_volumes;
+  RealArray densities;
+  RealArray cell_volumes;
 
   int base_id = 0;
   int end_id;
@@ -901,9 +907,9 @@ float Snapshot::getTotalEnergy() {
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
   float total_energy = 0.0f;
-  std::vector<float> energies;
-  std::vector<float> density;
-  std::vector<float> cell_volumes;
+  RealArray energies;
+  RealArray density;
+  RealArray cell_volumes;
 
   int base_id = 0;
   int end_id;
@@ -937,8 +943,8 @@ float Snapshot::getTotalInternalEnergy(double gamma) {
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
   float total_energy = 0.0f;
-  std::vector<float> pressures;
-  std::vector<float> cell_volumes;
+  RealArray pressures;
+  RealArray cell_volumes;
 
   BoundingBox bb = getDomainBoundingBox();
   float tot_vol = 1.0;
@@ -974,9 +980,9 @@ float Snapshot::getTotalInternalEnergy(double gamma) {
  **/
 float Snapshot::getTotalKineticEnergy() {
   float total_Ek = 0.0;
-  std::vector<float> densities;
-  std::vector<Vec> momenta;
-  std::vector<float> cell_volumes;
+  RealArray densities;
+  VecArray momenta;
+  RealArray cell_volumes;
 
   int base_id = 0;
   int end_id;
@@ -1012,7 +1018,7 @@ float Snapshot::getTotalKineticEnergy() {
  **/
 float Snapshot::getMaxMach() {
   float max_Mach = 0.0;
-  std::vector<float> Mach;
+  RealArray Mach;
 
   int base_id = 0;
   int end_id;
@@ -1039,7 +1045,7 @@ float Snapshot::getMaxMach() {
  **/
 float Snapshot::getAverageMach() {
   float avg_Mach = 0.0;
-  std::vector<float> Mach;
+  RealArray Mach;
 
   int base_id = 0;
   int end_id;
@@ -1071,9 +1077,9 @@ float Snapshot::getAverageMach() {
  * @todo abstract to any variable type
  * @todo abstract to any refinement error calculation
  **/
-std::vector<float> Snapshot::getRefinementCriterion(std::vector<Vec> pos) {
+RealArray Snapshot::getRefinementCriterion(VecArray pos) {
   uint nPos = pos.size(); 
-  std::vector<float> out(nPos);
+  RealArray out(nPos);
 
   #pragma omp parallel for schedule(dynamic)
   for (int i=0; i < nPos; ++i)
@@ -1087,7 +1093,7 @@ std::vector<float> Snapshot::getRefinementCriterion(std::vector<Vec> pos) {
  * @param iCells the ids of the cells to extract
  * @return a vector of densities for each cell
  **/
-std::vector<float> Snapshot::getDensity(std::vector<uint> iCells) {
+RealArray Snapshot::getDensity(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "rho");
 }
 
@@ -1096,7 +1102,7 @@ std::vector<float> Snapshot::getDensity(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of pressures for each cell
  **/
-std::vector<float> Snapshot::getPressure(std::vector<uint> iCells) {
+RealArray Snapshot::getPressure(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "P");
 }
 
@@ -1105,7 +1111,7 @@ std::vector<float> Snapshot::getPressure(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of energies for each cell
  **/
-std::vector<float> Snapshot::getTotalEnergy(std::vector<uint> iCells) {
+RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "e_tot");
 }
 
@@ -1114,7 +1120,7 @@ std::vector<float> Snapshot::getTotalEnergy(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of Mach number corresponding to the flow each cell
  **/
-std::vector<float> Snapshot::getMach(std::vector<uint> iCells) {
+RealArray Snapshot::getMach(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "Mach");
 }
 
@@ -1123,15 +1129,15 @@ std::vector<float> Snapshot::getMach(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of momenta for each cell
  **/
-std::vector<Vec> Snapshot::getMomentum(std::vector<uint> iCells) {
-  std::vector<float> res[3];
+VecArray Snapshot::getMomentum(std::vector<uint> iCells) {
+  RealArray res[3];
   res[0] = probeCells<float>(iCells, "rho_vx");
   res[1] = probeCells<float>(iCells, "rho_vy");
   if (nDim == 3)
     res[2] = probeCells<float>(iCells, "rho_vz");
 
   // Ewwwww ...
-  std::vector<Vec> out(iCells.size());
+  VecArray out(iCells.size());
   for (uint i=0; i < iCells.size(); ++i)
     for (int j=0; j < nDim; ++j)
       out[i][j] = res[j][i];
@@ -1144,10 +1150,10 @@ std::vector<Vec> Snapshot::getMomentum(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of velocities for each cell
  **/
-std::vector<Vec> Snapshot::getVelocity(std::vector<uint> iCells) {
-  std::vector<Vec> momentum = getMomentum(iCells);
-  std::vector<float> density = getDensity(iCells);
-  std::vector<Vec> out(iCells.size());
+VecArray Snapshot::getVelocity(std::vector<uint> iCells) {
+  VecArray momentum = getMomentum(iCells);
+  RealArray density = getDensity(iCells);
+  VecArray out(iCells.size());
 
   for (uint i=0; i < iCells.size(); ++i)
     for (uint j=0; j < nDim; ++j)
@@ -1161,7 +1167,7 @@ std::vector<Vec> Snapshot::getVelocity(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of levels for each cell
  **/
-std::vector<int> Snapshot::getLevel(std::vector<uint> iCells) {
+IntArray Snapshot::getLevel(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "level");
 }
 
@@ -1170,7 +1176,7 @@ std::vector<int> Snapshot::getLevel(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of rank for each cell
  **/
-std::vector<int> Snapshot::getRank(std::vector<uint> iCells) {
+IntArray Snapshot::getRank(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "rank");
 }
 
@@ -1179,18 +1185,17 @@ std::vector<int> Snapshot::getRank(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of octant ids for each cell
  **/
-std::vector<int> Snapshot::getOctant(std::vector<uint> iCells) {
+IntArray Snapshot::getOctant(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "iOct");
 }
 
 /**
  * Reads all the data corresponding to a field
  * @param attribute the name of the field to read
- * @param sort indicates if the array should be sorted by dimensions
  * @return an array of float correponding to the linearized array of the field
  **/
-std::vector<float> Snapshot::readAllFloat(std::string attribute) {
-  std::vector<float> res;
+RealArray Snapshot::readAllFloat(std::string attribute) {
+  RealArray res;
 
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
@@ -1236,7 +1241,7 @@ std::vector<float> Snapshot::readAllFloat(std::string attribute) {
  * @param by number of blocks along y
  * @result the sorted vector
  **/
-std::vector<float> Snapshot::mortonSort2d(std::vector<float> vec,
+RealArray Snapshot::mortonSort2d(RealArray vec,
                           uint iLevel, 
                           uint bx, uint by) {
   uint nOctPerDim = (1 << iLevel);
@@ -1245,7 +1250,7 @@ std::vector<float> Snapshot::mortonSort2d(std::vector<float> vec,
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
 
-  std::vector<float> result;
+  RealArray result;
 
   if (chunkSize * nOct != nCells) {
     std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
@@ -1282,7 +1287,17 @@ std::vector<float> Snapshot::mortonSort2d(std::vector<float> vec,
   return result;
 }
 
-std::vector<float> Snapshot::mortonSort3d(std::vector<float> vec,
+/**
+ * Sorts an array in 3D extracted from readAllXXXX along dimensions
+ * using morton index.
+ * @param vec the vector to sort
+ * @param iLevel the level at which we are (only works for regular grids)
+ * @param bx number of blocks along x
+ * @param by number of blocks along y
+ * @param bz number of blocks along z
+ * @result the sorted vector
+ **/
+RealArray Snapshot::mortonSort3d(RealArray vec,
                                           uint iLevel, 
                                           uint bx, uint by, uint bz) {
   uint nOctPerDim = (1 << iLevel);
@@ -1292,7 +1307,7 @@ std::vector<float> Snapshot::mortonSort3d(std::vector<float> vec,
   uint Ny = by * nOctPerDim;
   uint Nz = bz * nOctPerDim;
 
-  std::vector<float> result;
+  RealArray result;
 
   if (chunkSize * nOct != nCells) {
     std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
@@ -1334,8 +1349,15 @@ std::vector<float> Snapshot::mortonSort3d(std::vector<float> vec,
   return result;
 }
 
-std::vector<uint64_t> Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
-  std::vector<uint64_t> result;
+/**
+ * Returns the sequence of morton indices to get a regular grid sorted in memory
+ * @param iLevel level at which the regular grid is build
+ * @param bx block size along x
+ * @param by block size along y
+ * @return The sorted vector of morton ids
+ **/
+UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
+  UInt64Array result;
 
   uint nOctPerDim = (1 << iLevel);
   uint nOct = nOctPerDim*nOctPerDim;
@@ -1378,8 +1400,16 @@ std::vector<uint64_t> Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) 
   return result;
 }
 
-std::vector<uint64_t> Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
-  std::vector<uint64_t> result;
+/**
+ * Returns the sequence of morton indices to get a regular grid sorted in memory
+ * @param iLevel level at which the regular grid is build
+ * @param bx block size along x
+ * @param by block size along y
+ * @param bz block size along z
+ * @return The sorted vector of morton ids
+ **/
+UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
+  UInt64Array result;
 
   uint nOctPerDim = (1 << iLevel);
   uint nOct = nOctPerDim*nOctPerDim*nOctPerDim;
@@ -1398,7 +1428,7 @@ std::vector<uint64_t> Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, 
     x = (x | x << 2) & 0x1249249249249249;
 
     return x;
-  }; 
+  };
 
   result.resize(Nx*Ny*Nz);
 
@@ -1427,5 +1457,104 @@ std::vector<uint64_t> Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, 
   return result;
 }
 
+/**
+ * Extracts quantities along a line in the dataset
+ * @param line the object to fill in. Note that Nl, start and end 
+ *             should already be filled in.
+ * @param quantities a vector of string storing the quantities to be extracted
+ *                   these quantities can be any of the variables stored in the
+ *                   dataset.
+ **/
+void Snapshot::fillLine(Line &line) {
+  line.pos.clear();
+
+  // Building position vector
+  Vec dh = (line.end - line.start) / (line.Nl-1);
+  Vec cur_pos = line.start;
+  for (int i=0; i < line.Nl; ++i) {
+    line.pos.push_back(cur_pos);
+    cur_pos += dh;
+  }
+
+  auto cellIds = getCellsFromPositions(line.pos);
+
+  line.rho = getDensity(cellIds);
+  line.E   = getTotalEnergy(cellIds);
+  line.vel = getVelocity(cellIds);
+  if (hasAttribute("P"))
+    line.prs = getPressure(cellIds);
+}
+
+/**
+ * Extracts quantities along a line in the dataset
+ * @param slice the object to fill in. Note that Nx, Ny, dir and origin
+ *             should already be filled in.
+ * @param quantities a vector of string storing the quantities to be extracted
+ *                   these quantities can be any of the variables stored in the
+ *                   dataset.
+ **/
+void Snapshot::fillSlice(Slice &slice) {
+  auto bb = getDomainBoundingBox();
+
+  slice.pos.clear();
+
+  Vec cur_pos = bb.first;
+  int d1, d2;
+  switch (slice.dir) {
+    case SliceDir::XY: 
+      cur_pos[IZ] = slice.origin;
+      d1 = 0;
+      d2 = 1;
+      break;
+    case SliceDir::XZ:
+      cur_pos[IY] = slice.origin;
+      d1 = 0;
+      d2 = 2;
+      break;
+    case SliceDir::YZ:
+    default:
+      cur_pos[IX] = slice.origin;
+      d1 = 1;
+      d2 = 2;
+      break;
+  }
+
+  double dd1 = (bb.second[d1] - bb.first[d1]) / (slice.Nx - 1);
+  double dd2 = (bb.second[d2] - bb.first[d1]) / (slice.Ny - 1);
+
+  // Building position vector
+  Vec start = cur_pos;
+  for (int i=0; i < slice.Nx; ++i) {
+    cur_pos[d2] = start[d2];
+    for (int j=0; j < slice.Ny; ++j) {
+      slice.pos.push_back(cur_pos);
+      cur_pos[d2] += dd2;
+    }
+    cur_pos[d1] += dd1;
+  }
+
+  std::cout << "  . Extracting cells from positions" << std::endl;
+  auto cellIds = getCellsFromPositions(slice.pos);
+  
+  std::cout << "  . Extracting quantities" << std::endl;
+  slice.rho = getDensity(cellIds);
+  slice.E   = getTotalEnergy(cellIds);
+  VecArray vel = getVelocity(cellIds);
+  
+  int nelem = slice.Nx * slice.Ny;
+  slice.vx.resize(nelem);
+  slice.vy.resize(nelem);
+  slice.vz.resize(nelem);
+  for (int i=0; i < nelem; ++i) {
+    slice.vx[i] = vel[i][0];    
+    slice.vy[i] = vel[i][1];
+    slice.vz[i] = vel[i][2];
+  }
+
+  bool has_pressure = hasAttribute("P");
+  RealArray prs;
+  if (has_pressure)
+    slice.prs = getPressure(cellIds);
+}
 
 }

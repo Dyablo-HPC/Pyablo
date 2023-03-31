@@ -4,3 +4,9 @@
 [submodule "external/pybind11"]
 	path = external/pybind11
 	url = https://github.com/pybind/pybind11
+[submodule "external/stb"]
+	path = external/stb
+	url = https://github.com/nothings/stb
+[submodule "external/HighFive"]
+	path = external/HighFive
+	url = https://github.com/BlueBrain/HighFive

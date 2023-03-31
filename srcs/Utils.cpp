@@ -36,6 +36,30 @@ Vec& operator*=(Vec &v, float q) {
   return v;
 }
 
+Vec operator/(const Vec &v, float q) {
+  return v * (1.0/q);
+}
+
+Vec& operator/=(Vec &v, float q) {
+  v[0] /= q;
+  v[1] /= q;
+  v[2] /= q;
+  return v;
+}
+
+
+template<typename Tout, typename Tin>
+Tout reshapeArray(const Tin &array, int Nx, int Ny) {
+  Tout res;
+  res.reshape(Nx);
+  int pos=0;
+  for (int i=0; i < Nx; ++i) {
+    res[i].reshape(Ny);
+    std::copy(array.begin()+pos, array.begin()+pos+Ny);
+    pos += Ny;
+  }
+  return std::move(res);
+}
 
 /**
  * Returns if the given position is inside the bounding box

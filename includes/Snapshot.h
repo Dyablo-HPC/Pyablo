@@ -1,26 +1,10 @@
 #pragma once
 
 #include <bits/stdc++.h>
-#include "hdf5.h"
 
 #include "Utils.h"
 
 namespace dyablo {
-
-struct Attribute {
-  std::string name;
-  std::string type;
-  std::string center;
-  hid_t handle;
-};
-
-struct VarState {
-  float rho;
-  float vx;
-  float vy;
-  float vz;
-  float prs; 
-};
 
 constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
 
@@ -35,7 +19,6 @@ constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
  * @todo buffer storing for probing ? Maybe do a region extraction as in yt ?
  * @todo I'm pretty sure probeLocation can be written in a nice templated without
  *       having to explicitely define the template when calling it ...
- * @todo Time series
  * @todo Improve getRefinementCriterion by enabling the user to provide a lambda for 
  *       the calculation
  * @todo Finish getBlock when iOct writing has been corrected
@@ -57,8 +40,8 @@ class Snapshot {
   hid_t coordinates;                           //!< Handle to coordinates dataset
   std::map<std::string, Attribute> attributes; //!< Map of attributes
 
-  std::vector<int>   index_buffer;  //!< Connectivity info (HEAVY !)
-  std::vector<float> vertex_buffer; //!< Coordinates info  (HEAVY !)
+  IntArray  index_buffer;  //!< Connectivity info (HEAVY !)
+  RealArray vertex_buffer; //!< Coordinates info  (HEAVY !)
 
   int nDim;       //!< Number of dimensions of the dataset   
   int nElems;     //!< Number of indices per cell
@@ -98,11 +81,11 @@ class Snapshot {
   /** Vector access 
    * @note: Please use these for large query as most of them are made in parallel
    **/
-  std::vector<int>   getCellsFromPositions(std::vector<Vec> v);
-  std::vector<Vec>   getCellCenter(std::vector<uint> iCells);
-  std::vector<Vec>   getCellSize(std::vector<uint> iCells);
-  std::vector<float> getCellVolume(std::vector<uint> iCells);
-  std::vector<Vec>   getUniqueCells(std::vector<Vec> pos);
+  UIntArray  getCellsFromPositions(VecArray v);
+  VecArray   getCellCenter(UIntArray iCells);
+  VecArray   getCellSize(UIntArray iCells);
+  RealArray  getCellVolume(UIntArray iCells);
+  VecArray   getUniqueCells(VecArray pos);
 
   /** Domain info **/
   int getNCells();
@@ -113,9 +96,9 @@ class Snapshot {
   template<typename T>
   T probeLocation(Vec pos, std::string attribute);
   template<typename T>
-  std::vector<T> probeLocation(std::vector<Vec> pos, std::string attribute);
+  std::vector<T> probeLocation(VecArray pos, std::string attribute);
   template<typename T>
-  std::vector<T> probeCells(std::vector<uint> iCells, std::string attribute);
+  std::vector<T> probeCells(UIntArray iCells, std::string attribute);
 
   /** High-level probing methods **/
   float probeDensity(Vec pos);
@@ -136,38 +119,41 @@ class Snapshot {
   float getMaxMach();
   float getAverageMach();
 
-  float getRefinementCriterion(Vec pos);
-  std::vector<float> getRefinementCriterion(std::vector<Vec> pos);  
+  float     getRefinementCriterion(Vec pos);
+  RealArray getRefinementCriterion(VecArray pos);  
   
   // Vector functions
-  std::vector<float> probeDensity(std::vector<Vec> pos);
-  std::vector<float> probePressure(std::vector<Vec> pos);
-  std::vector<float> probeTotalEnergy(std::vector<Vec> pos);
-  std::vector<float> probeMach(std::vector<Vec> pos);
-  std::vector<Vec>   probeMomentum(std::vector<Vec> pos);
-  std::vector<Vec>   probeVelocity(std::vector<Vec> pos);
-  std::vector<int>   probeLevel(std::vector<Vec> pos);
-  std::vector<int>   probeRank(std::vector<Vec> pos);
-  std::vector<int>   probeOctant(std::vector<Vec> pos);
+  RealArray probeDensity(VecArray pos);
+  RealArray probePressure(VecArray pos);
+  RealArray probeTotalEnergy(VecArray pos);
+  RealArray probeMach(VecArray pos);
+  VecArray  probeMomentum(VecArray pos);
+  VecArray  probeVelocity(VecArray pos);
+  IntArray  probeLevel(VecArray pos);
+  IntArray  probeRank(VecArray pos);
+  IntArray  probeOctant(VecArray pos);
 
   // By cell
-  std::vector<float> getDensity(std::vector<uint> iCells);
-  std::vector<float> getPressure(std::vector<uint> iCells);
-  std::vector<float> getTotalEnergy(std::vector<uint> iCells);
-  std::vector<float> getMach(std::vector<uint> iCells);
-  std::vector<Vec>   getMomentum(std::vector<uint> iCells);
-  std::vector<Vec>   getVelocity(std::vector<uint> iCells);
-  std::vector<int>   getLevel(std::vector<uint> iCells);
-  std::vector<int>   getRank(std::vector<uint> iCells);
-  std::vector<int>   getOctant(std::vector<uint> iCells);
+  RealArray getDensity(UIntArray iCells);
+  RealArray getPressure(UIntArray iCells);
+  RealArray getTotalEnergy(UIntArray iCells);
+  RealArray getMach(UIntArray iCells);
+  VecArray  getMomentum(UIntArray iCells);
+  VecArray  getVelocity(UIntArray iCells);
+  IntArray  getLevel(UIntArray iCells);
+  IntArray  getRank(UIntArray iCells);
+  IntArray  getOctant(UIntArray iCells);
 
-  std::vector<int>   getBlock(uint iOct);
+  IntArray  getBlock(uint iOct);
 
-  std::vector<float>    readAllFloat(std::string field);
-  std::vector<float>    mortonSort2d(std::vector<float> vec, uint iLevel, uint bx, uint by);
-  std::vector<float>    mortonSort3d(std::vector<float> vec, uint iLevel, uint bx, uint by, uint bz);
-  std::vector<uint64_t> getSortingMask2d(uint iLevel, uint bx, uint by);
-  std::vector<uint64_t> getSortingMask3d(uint iLevel, uint bx, uint by, uint bz);
+  RealArray   readAllFloat(std::string attribute);
+  RealArray   mortonSort2d(RealArray vec, uint iLevel, uint bx, uint by);
+  RealArray   mortonSort3d(RealArray vec, uint iLevel, uint bx, uint by, uint bz);
+  UInt64Array getSortingMask2d(uint iLevel, uint bx, uint by);
+  UInt64Array getSortingMask3d(uint iLevel, uint bx, uint by, uint bz);
+
+  void fillLine(Line &line);
+  void fillSlice(Slice &slice);
 
   // Static variable for vectorized reading
   static int vec_size;
