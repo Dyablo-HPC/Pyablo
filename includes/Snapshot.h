@@ -151,6 +151,8 @@ class Snapshot {
   RealArray   mortonSort3d(RealArray vec, uint iLevel, uint bx, uint by, uint bz);
   UInt64Array getSortingMask2d(uint iLevel, uint bx, uint by);
   UInt64Array getSortingMask3d(uint iLevel, uint bx, uint by, uint bz);
+  UInt64Array getSortingMask2d(uint iLevel, uint bx, uint by, uint coarse_res_x, uint coarse_res_y);
+  UInt64Array getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, uint coarse_res_x, uint coarse_res_y, uint coarse_res_z);
 
   void fillLine(Line &line);
   void fillSlice(Slice &slice);
