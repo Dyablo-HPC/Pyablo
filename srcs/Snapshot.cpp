@@ -1419,12 +1419,12 @@ UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by, uint coars
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
 
-  if (chunkSize * nOct != nCells) {
+  /*if (chunkSize * nOct != nCells) {
     std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
     std::cerr << " . nCells = " << nCells << std::endl;
     std::cerr << " . cell count = " << chunkSize * nOct << std::endl;
     return result;
-  }
+  }*/
   
   // Morton encoding
   auto splitBy2 = [](uint32_t z) {
