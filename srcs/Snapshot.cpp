@@ -1531,7 +1531,7 @@ UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
  * @return The sorted vector of morton ids
  **/
 UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, uint coarse_res_x, uint coarse_res_y, uint coarse_res_z) {
-  UInt64Array result;
+  UInt64Array index;
 
   uint nOctPerDim = (1 << iLevel);
   uint nOct = nOctPerDim*nOctPerDim*nOctPerDim;
@@ -1552,49 +1552,58 @@ UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, u
     return x;
   };
 
-  result.resize(Nx*Ny*Nz);
-  constexpr uint64_t MAX_VAL = std::numeric_limits<uint64_t>::max();
-  std::fill(result.begin(), result.end(), MAX_VAL);
+  // Extracts coordinates depending on the direction
+  auto morton_extract = [](uint64_t key, Direction dir) -> uint32_t {
+    key = key >> (uint64_t)dir;
 
-  uint bxby = bx*by;
-  uint NxNy = Nx*Ny;
+    key &= 0x1249249249249249;
+    key = (key ^ (key >> 2))  & 0x30c30c30c30c30c3;
+    key = (key ^ (key >> 4))  & 0xf00f00f00f00f00f;
+    key = (key ^ (key >> 8))  & 0x00ff0000ff0000ff;
+    key = (key ^ (key >> 16)) & 0x00ff00000000ffff;
+    key = (key ^ (key >> 32)) & 0x1fffff;
 
-  #pragma omp parallel for
-  for (uint iz=0; iz < Nz; ++iz) {
-    uint64_t iOz = iz / bz;
-    if (iOz >= coarse_res_z)
+    return static_cast<uint32_t>(key);
+  };
+
+  const uint N = coarse_res_x * coarse_res_y * coarse_res_z * bx * by * bz; // Number of cells in the truncated domain
+  const uint64_t morton_max = Nx*Ny*Nz;
+
+  index.resize(N);
+
+  uint64_t global_index = 0;
+  
+  // We look at each morton index in the domain
+  for (uint64_t im=0; im < morton_max; ++im) {
+    // Get the position from the index
+    uint32_t ix = morton_extract(im, IX);
+    if (ix >= coarse_res_x)
       continue;
 
-    uint iBz = iz % bz;
-    for (uint iy=0; iy < Ny; ++iy) {
-      uint64_t iOy = iy / by;
-      if (iOy >= coarse_res_y)
-        continue;
+    uint32_t iy = morton_extract(im, IY);
+    if (iy >= coarse_res_y)
+      continue;
 
-      uint iBy = iy % by;
-      for (uint ix=0; ix < Nx; ++ix) {
-        uint64_t iOx = ix / bx;
-        if (iOx >= coarse_res_x)
-          continue;
+    uint32_t iz = morton_extract(im, IZ);
+    if (iz >= coarse_res_z)
+      continue;
 
-        uint iBx = ix % bx;
+    for (int icz=0; icz < bz; ++icz) {
+      uint32_t iiz = (icz + iz*bz);
+      for (int icy = 0; icy < by; ++icy) {
+        uint32_t iiy = (icy + iy*by);
+        for (int icx = 0; icx < bx; ++icx) {
+          uint32_t iix = (icx + ix*bx);
 
-        uint64_t id = iz*NxNy + iy*Nx + ix;
-        uint64_t key = splitBy3(iOx) | splitBy3(iOy) << 1 | splitBy3(iOz) << 2;
-        key *= chunkSize;
-        key += iBz * bxby + iBy * bx + iBx;
-        result[id] = key;
+          uint32_t ii = iix + iiy*bx*coarse_res_x + iiz*bx*by*coarse_res_x*coarse_res_y;
+          index[ii] = global_index++;
+        }
+
       }
     }
   }
 
-  // Then we 
-  std::vector<uint64_t> res;
-  for (auto v: result)
-    if (v != MAX_VAL)
-      res.push_back(v);
-
-  return res;
+  return index;
 }
 
 /**
