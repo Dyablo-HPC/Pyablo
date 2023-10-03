@@ -1411,53 +1411,59 @@ UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
  * @return The sorted vector of morton ids
  **/
 UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by, uint coarse_res_x, uint coarse_res_y) {
-  UInt64Array result;
+  UInt64Array index;
 
   uint nOctPerDim = (1 << iLevel);
-  uint nOct = nOctPerDim*nOctPerDim;
+  uint nOct = nOctPerDim*nOctPerDim*nOctPerDim;
   uint chunkSize = bx*by;
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
 
-  /*if (chunkSize * nOct != nCells) {
-    std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
-    std::cerr << " . nCells = " << nCells << std::endl;
-    std::cerr << " . cell count = " << chunkSize * nOct << std::endl;
-    return result;
-  }*/
+  // Extracts coordinates depending on the direction
+  auto morton_extract = [](uint64_t key, Direction dir) -> uint32_t {
+    key = key >> (uint64_t)dir;
+
+    key &= 0x5555555555555555;
+    
+    key = (key ^ (key >> 1))  & 0x3333333333333333;
+    key = (key ^ (key >> 2))  & 0x0f0f0f0f0f0f0f0f;
+    key = (key ^ (key >> 4))  & 0x00ff00ff00ff00ff;
+    key = (key ^ (key >> 8))  & 0x0000ffff0000ffff;
+    key = (key ^ (key >> 16)) & 0x00000000ffffffff;
+
+    return static_cast<uint32_t>(key);
+  };
+
+  const uint N = coarse_res_x * coarse_res_y * bx * by; // Number of cells in the truncated domain
+  const uint64_t morton_max = Nx*Ny;
+
+  index.resize(N);
+
+  uint64_t global_index = 0;
   
-  // Morton encoding
-  auto splitBy2 = [](uint32_t z) {
-    uint64_t x = z & 0xffffffff;
-    x = (x | x << 16) & 0xffff0000ffff;
-    x = (x | x << 8) & 0xff00ff00ff00ff;
-    x = (x | x << 4) & 0xf0f0f0f0f0f0f0f;
-    x = (x | x << 2) & 0x3333333333333333;
-    x = (x | x << 1) & 0x5555555555555555;
-
-    return x;
-  }; 
-
-  for (uint iy=0; iy < Ny; ++iy) {
-    uint64_t iOy = iy / by;
-    if (iOy >= coarse_res_y)
+  // We look at each morton index in the domain
+  for (uint64_t im=0; im < morton_max; ++im) {
+    // Get the position from the index
+    uint32_t ix = morton_extract(im, IX);
+    if (ix >= coarse_res_x)
       continue;
 
-    uint iBy = iy % by;
-    for (uint ix=0; ix < Nx; ++ix) {
-      uint64_t iOx = ix / bx;
-      if (iOx >= coarse_res_x)
-        continue;
+    uint32_t iy = morton_extract(im, IY);
+    if (iy >= coarse_res_y)
+      continue;
 
-      uint iBx = ix % bx;
+    for (int icy = 0; icy < by; ++icy) {
+      uint32_t iiy = (icy + iy*by);
+      for (int icx = 0; icx < bx; ++icx) {
+        uint32_t iix = (icx + ix*bx);
 
-      uint64_t key = splitBy2(iOx) | splitBy2(iOy) << 1;
-      key *= chunkSize;
-      key += iBy * bx + iBx;
-      result.push_back(key);
+        uint32_t ii = iix + iiy*bx*coarse_res_x;
+        index[ii] = global_index++;
+      }
     }
   }
-  return result;
+
+  return index;
 }
 
 
@@ -1539,18 +1545,6 @@ UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, u
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
   uint Nz = bz * nOctPerDim;
-  
-  // Morton encoding
-  auto splitBy3 = [](uint32_t z) {
-    uint64_t x = z & 0xffffffff;
-    x = (x | x << 32) & 0x1f00000000ffff; 
-    x = (x | x << 16) & 0x1f0000ff0000ff; 
-    x = (x | x << 8) & 0x100f00f00f00f00f;
-    x = (x | x << 4) & 0x10c30c30c30c30c3; 
-    x = (x | x << 2) & 0x1249249249249249;
-
-    return x;
-  };
 
   // Extracts coordinates depending on the direction
   auto morton_extract = [](uint64_t key, Direction dir) -> uint32_t {
