@@ -8,6 +8,15 @@ Analysis tools for dyablo
  . HDF5 1.10+ (not tested on 1.8)
  . Cython
 
+## Initializing submodules
+
+This repo uses submodules. You can recover those by adding the `--recursive` option when cloning the repository. If you already have cloned the repo and not fetched the submodules, you can get them by using the following commands : 
+
+```
+git submodule init
+git submodule update
+```
+
 ## Build the package
 
 In the source directory : 
