@@ -101,6 +101,7 @@ class Snapshot {
   std::vector<T> probeCells(UIntArray iCells, std::string attribute);
 
   /** High-level probing methods **/
+  float probeQuantity(Vec pos, std::string attribute);
   float probeDensity(Vec pos);
   float probePressure(Vec pos);
   float probeTotalEnergy(Vec pos);
@@ -123,6 +124,7 @@ class Snapshot {
   RealArray getRefinementCriterion(VecArray pos);  
   
   // Vector functions
+  RealArray probeQuantity(VecArray pos, std::string attribute);
   RealArray probeDensity(VecArray pos);
   RealArray probePressure(VecArray pos);
   RealArray probeTotalEnergy(VecArray pos);

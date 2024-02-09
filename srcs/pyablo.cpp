@@ -39,6 +39,7 @@ PYBIND11_MODULE(pyablo, m) {
     .def("getCellsSize",   static_cast<std::vector<Vec> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellSize))
     .def("getCellsVolume", static_cast<std::vector<float> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellVolume))
 
+    .def("probeQuantity",   static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>, std::string)>(&Snapshot::probeQuantity))
     .def("probeDensity",    static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeDensity))
     .def("probePressure",   static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probePressure))
     .def("probeEnergy",     static_cast<std::vector<float> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeTotalEnergy))

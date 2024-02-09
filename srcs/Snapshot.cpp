@@ -556,6 +556,10 @@ float Snapshot::probeDensity(Vec pos) {
   return probeLocation<float>(pos, "rho");
 }
 
+float Snapshot::probeQuantity(Vec pos, std::string attribute) {
+  return probeLocation<float>(pos, attribute);
+}
+
 /** 
  * Probes a location for total energy
  * @param pos the position to probe
@@ -645,6 +649,10 @@ int Snapshot::probeOctant(Vec pos) {
  **/
 RealArray Snapshot::probeDensity(VecArray pos) {
   return probeLocation<float>(pos, "rho");
+}
+
+RealArray Snapshot::probeQuantity(VecArray pos, std::string attribute) {
+  return probeLocation<float>(pos, attribute);
 }
 
 /** 
