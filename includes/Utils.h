@@ -47,6 +47,7 @@ struct Line {
   VecArray pos;
   RealArray rho, prs, E;
   VecArray vel;
+  UIntArray cellIds;
 };
 
 enum class SliceDir {

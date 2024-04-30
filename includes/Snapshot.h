@@ -157,6 +157,7 @@ class Snapshot {
   UInt64Array getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, uint coarse_res_x, uint coarse_res_y, uint coarse_res_z);
 
   void fillLine(Line &line);
+  void fillLineUnique(Line &line);
   void fillSlice(Slice &slice);
 
   // Static variable for vectorized reading

@@ -1612,9 +1612,6 @@ UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, u
  * Extracts quantities along a line in the dataset
  * @param line the object to fill in. Note that Nl, start and end 
  *             should already be filled in.
- * @param quantities a vector of string storing the quantities to be extracted
- *                   these quantities can be any of the variables stored in the
- *                   dataset.
  **/
 void Snapshot::fillLine(Line &line) {
   line.pos.clear();
@@ -1635,6 +1632,38 @@ void Snapshot::fillLine(Line &line) {
   if (hasAttribute("P"))
     line.prs = getPressure(cellIds);
 }
+
+/**
+ * Extracts quantities along a line and removes duplicate ids
+ * @param line the object to fill in. Note that Nl, start and end 
+ *              should already be filled in
+ */
+void Snapshot::fillLineUnique(Line &line) {
+  line.pos.clear();
+
+  // Building position vector
+  Vec dh = (line.end - line.start) / (line.Nl-1);
+  Vec cur_pos = line.start;
+  for (int i=0; i < line.Nl; ++i) {
+    line.pos.push_back(cur_pos);
+    cur_pos += dh;
+  }
+
+  // Getting unique positions and shifing the positions
+  auto pos_cellIds = getCellsFromPositions(line.pos);
+  for (auto cid: pos_cellIds)
+    if (line.cellIds.size() == 0 || line.cellIds.back() != cid)
+      line.cellIds.push_back(cid);
+
+  line.pos = getCellCenter(line.cellIds);
+
+  // Returning the values
+  line.rho = getDensity(line.cellIds);
+  line.E   = getTotalEnergy(line.cellIds);
+  line.vel = getVelocity(line.cellIds);
+  if (hasAttribute("P"))
+    line.prs = getPressure(line.cellIds);
+} 
 
 /**
  * Extracts quantities along a line in the dataset

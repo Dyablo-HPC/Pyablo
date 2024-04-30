@@ -13,9 +13,10 @@ PYBIND11_MODULE(pyablo, m) {
   /**
    *  XdmfReader
    **/
-  py::class_<XdmfReader>(m, "XdmfReader")
+  py::class_<dyablo::XdmfReader>(m, "XdmfReader")
     .def(py::init())
-    .def("readSnapshot", &XdmfReader::readSnapshot);
+    .def("readSnapshot", &XdmfReader::readSnapshot)
+    .def("readTimeSeries", &XdmfReader::readTimeSeries);
   
   /**
    * Snapshot
@@ -78,7 +79,24 @@ PYBIND11_MODULE(pyablo, m) {
     .def("getSortingMask3d", static_cast<std::vector<uint64_t> (Snapshot::*)(uint, uint, uint, uint)>(&Snapshot::getSortingMask3d))
     .def("getSortingMask3d", static_cast<std::vector<uint64_t> (Snapshot::*)(uint, uint, uint, uint, uint, uint, uint)>(&Snapshot::getSortingMask3d))
 
+    .def("fillLine",       &Snapshot::fillLine)
+    .def("fillLineUnique", &Snapshot::fillLineUnique)
    ;
+
+   /**
+    * Line structure
+    **/
+   py::class_<dyablo::Line>(m, "Line")
+     .def(py::init())
+     .def_readwrite("Nl",     &Line::Nl)
+     .def_readwrite("start",  &Line::start)
+     .def_readwrite("end",    &Line::end)
+     .def_readonly("pos",     &Line::pos)
+     .def_readonly("rho",     &Line::rho)
+     .def_readonly("prs",     &Line::prs)
+     .def_readonly("E",       &Line::E)
+     .def_readonly("vel",     &Line::vel)
+     .def_readonly("cellIds", &Line::cellIds);
 
   m.doc() = "pyablo python bindings"; // optional module docstring
 }
