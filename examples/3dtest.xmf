@@ -1,0 +1,119 @@
+<?xml version="1.0" ?>
+<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
+<Xdmf Version="2.0">
+  <Domain>
+    <Grid Name="3dtest" GridType="Uniform">
+      <Time TimeType="Single" Value="0" />
+      <Topology TopologyType="Hexahedron" NumberOfElements="32768">
+        <DataItem Dimensions="32768 8" DataType="UInt" Precision="8" Format="HDF">
+          3dtest.h5:/connectivity
+        </DataItem>
+      </Topology>
+      <Geometry GeometryType="XYZ">
+        <DataItem Dimensions="39304 3" NumberType="Float" Precision="4" Format="HDF">
+          3dtest.h5:/coordinates
+        </DataItem>
+      </Geometry>
+      <Attribute Name="e_tot" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/e_tot
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gp_x" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gp_x
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gp_y" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gp_y
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gp_z" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gp_z
+        </DataItem>
+      </Attribute>
+      <Attribute Name="grho_x" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/grho_x
+        </DataItem>
+      </Attribute>
+      <Attribute Name="grho_y" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/grho_y
+        </DataItem>
+      </Attribute>
+      <Attribute Name="grho_z" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/grho_z
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gu_x" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gu_x
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gu_y" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gu_y
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gu_z" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gu_z
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gv_x" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gv_x
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gv_y" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gv_y
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gv_z" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gv_z
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gw_x" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gw_x
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gw_y" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gw_y
+        </DataItem>
+      </Attribute>
+      <Attribute Name="gw_z" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/gw_z
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/rho
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho_vx" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/rho_vx
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho_vy" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/rho_vy
+        </DataItem>
+      </Attribute>
+      <Attribute Name="rho_vz" AttributeType="Scalar" Center="Cell">
+        <DataItem Dimensions="32768 1" NumberType="Float" Precision="4" Format="HDF">
+         3dtest.h5:/rho_vz
+        </DataItem>
+      </Attribute>
+    </Grid>
+  </Domain>
+</Xdmf>

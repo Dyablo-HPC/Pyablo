@@ -3,6 +3,42 @@
 
 namespace dyablo {
 
+namespace{
+  float det(const Vec& u, const Vec& v, const Vec& w)
+  {
+    return u[0]*v[1]*w[2] + u[1]*v[2]*w[0] + u[2]*v[0]*w[1]
+          -u[2]*v[1]*w[0] - u[1]*v[0]*w[2] - u[0]*v[2]*w[1];
+  }
+
+  Vec cross(const Vec& u, const Vec& v) 
+  {
+    return {
+      u[1]*v[2] - u[2]*v[1],
+      u[2]*v[0] - u[0]*v[2],
+      u[0]*v[1] - u[1]*v[0]
+    };
+  }
+
+  Vec operator*(const Vec &a, const Vec &b)
+  {
+    return {
+      a[0]*b[0],
+      a[1]*b[1],
+      a[2]*b[2]
+    };
+  }
+
+  Vec operator*(const float a, const Vec &b)
+  {
+    return {
+      a*b[0],
+      a*b[1],
+      a*b[2]
+    };
+  }
+  #define CELL_GEOMETRY
+};
+
 int Snapshot::vec_size = 1000000;
 
 /**
@@ -240,6 +276,7 @@ BoundingBox Snapshot::getCellBoundingBox(uint iCell) {
  * @param iCell the index of the cell to probe
  * @return a vector giving the center position of the cell iCell
  **/
+#ifndef CELL_GEOMETRY
 Vec Snapshot::getCellCenter(uint iCell) {
   Vec out{0.0};
   for (int i=0; i < nElems; ++i) {
@@ -257,12 +294,74 @@ Vec Snapshot::getCellCenter(uint iCell) {
     out[2] /= nElems;
   return out;
 }
+#else
+Vec Snapshot::getCellCenter(uint iCell) {
+  Vec v[nElems]{};
+  for (int i=0; i < nElems; ++i) {
+    int ci = index_buffer[iCell*nElems+i];
+    float *coords = &vertex_buffer[ci*CoordSize];
+    v[i][0] = coords[0];
+    v[i][1] = coords[1];
+    if (nDim == 3)
+      v[i][2] = coords[2];
+  }
+
+  if(nDim == 2)
+  {
+    Vec &bl=v[0], &br=v[1], &tr=v[2], &tl=v[3]; 
+    float cx = ((bl[0] + br[0])*(bl[0]*br[1] - br[0]*bl[1]) - (bl[0] + tl[0])*(bl[0]*tl[1] - tl[0]*bl[1]) + (br[0] + tr[0])*(br[0]*tr[1] - tr[0]*br[1]) + (tr[0] + tl[0])*(tr[0]*tl[1] - tl[0]*tr[1])) / (3*(bl[0]*br[1] - bl[0]*tl[1] - br[0]*bl[1] + br[0]*tr[1] - tr[0]*br[1] + tr[0]*tl[1] + tl[0]*bl[1] - tl[0]*tr[1]));
+    float cy = ((bl[1] + br[1])*(bl[0]*br[1] - br[0]*bl[1]) - (bl[1] + tl[1])*(bl[0]*tl[1] - tl[0]*bl[1]) + (br[1] + tr[1])*(br[0]*tr[1] - tr[0]*br[1]) + (tr[1] + tl[1])*(tr[0]*tl[1] - tl[0]*tr[1])) / (3*(bl[0]*br[1] - bl[0]*tl[1] - br[0]*bl[1] + br[0]*tr[1] - tr[0]*br[1] + tr[0]*tl[1] + tl[0]*bl[1] - tl[0]*tr[1]));
+    return {cx, cy, 0};
+  }
+  else
+  {
+    Vec fxL = 0.25 * (v[0] + v[3] + v[7] + v[4]);
+    Vec fxR = 0.25 * (v[1] + v[2] + v[6] + v[5]);
+    Vec fyL = 0.25 * (v[0] + v[1] + v[5] + v[4]);
+    Vec fyR = 0.25 * (v[3] + v[2] + v[6] + v[7]);
+    Vec fzL = 0.25 * (v[0] + v[1] + v[2] + v[3]);
+    Vec fzR = 0.25 * (v[4] + v[5] + v[6] + v[7]);
+      
+    const float v1 = det(fxR-fxL, fyR-fyL, fzR-fzL);
+    const float d1 = det(v[5]-v[0], v[7]-v[0], v[2]-v[0]);
+    const float d2 = det(v[6]-v[3], v[6]-v[1], v[6]-v[4]);
+    const float volume = (16*v1 + d1 + d2) / 12.;
+
+    auto contribution_side = [&](const Vec &p0, const Vec &p1, const Vec &p2, const Vec &p3, const Vec &m) -> Vec 
+    {
+      // split each side into 4 triangle
+      auto contribution_triangle = [&](const Vec &a, const Vec &b) -> Vec {
+        Vec n = cross(a-m, b-m);
+        return n * ((a+b)*(a+b) + (b+m)*(b+m) + (m+a)*(m+a));
+        // return {
+        //   n[IX] * ((a[IX]+b[IX])*(a[IX]+b[IX]) + (b[IX]+m[IX])*(b[IX]+m[IX]) + (m[IX]+a[IX])*(m[IX]+a[IX])),
+        //   n[IY] * ((a[IY]+b[IY])*(a[IY]+b[IY]) + (b[IY]+m[IY])*(b[IY]+m[IY]) + (m[IY]+a[IY])*(m[IY]+a[IY])),
+        //   n[IZ] * ((a[IZ]+b[IZ])*(a[IZ]+b[IZ]) + (b[IZ]+m[IZ])*(b[IZ]+m[IZ]) + (m[IZ]+a[IZ])*(m[IZ]+a[IZ])),
+        // };
+      };
+
+      return contribution_triangle(p0,p1) + contribution_triangle(p1,p2) 
+           + contribution_triangle(p2,p3) + contribution_triangle(p3,p0);
+    };
+
+    return (contribution_side(v[0], v[4], v[7], v[3], fxL)
+          + contribution_side(v[1], v[2], v[6], v[5], fxR)
+          + contribution_side(v[1], v[5], v[4], v[0], fyL)
+          + contribution_side(v[2], v[3], v[7], v[6], fyR)
+          + contribution_side(v[0], v[3], v[2], v[1], fzL)
+          + contribution_side(v[4], v[5], v[6], v[7], fzR)) / (48 * volume);
+  }
+
+}
+#endif
+
 
 /**
  * Returns the centers of given cells
  * @param iCells the indices of the cells to probe
  * @return a vector of positions corresponding to the center of the cells
  **/
+#ifndef CELL_GEOMETRY
 VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
   uint nPos = iCells.size();
   VecArray out(nPos);
@@ -287,6 +386,19 @@ VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
 
   return out;
 }
+#else
+VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
+  uint nPos = iCells.size();
+  VecArray out(nPos);
+  
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < nPos; ++i) {
+    out[i] = getCellCenter(iCells[i]);
+  }
+
+  return out;
+}
+#endif
 
 /**
  * Returns the size of a cell
@@ -324,6 +436,7 @@ VecArray Snapshot::getCellSize(std::vector<uint> iCells) {
  * @param iCell the index of the cell to probe
  * @return a float indicating the surface in 2D or the volume in 3D of the cell
  **/
+#ifndef CELL_GEOMETRY
 float Snapshot::getCellVolume(uint iCell) {
   BoundingBox bb = getCellBoundingBox(iCell);
   float out = bb.second[0] - bb.first[0];
@@ -331,6 +444,40 @@ float Snapshot::getCellVolume(uint iCell) {
     out *= bb.second[i] - bb.first[i];
   return out;
 }
+#else
+float Snapshot::getCellVolume(uint iCell) {
+  Vec v[nElems]{};
+  for (int i=0; i < nElems; ++i) {
+    int ci = index_buffer[iCell*nElems+i];
+    float *coords = &vertex_buffer[ci*CoordSize];
+    v[i][0] = coords[0];
+    v[i][1] = coords[1];
+    if (nDim == 3)
+      v[i][2] = coords[2];
+  }
+  if(nDim==2)
+  {
+    Vec &bl=v[0], &br=v[1], &tr=v[2], &tl=v[3]; 
+    return 0.5 * fabs((tl[0] - br[0]) * (tr[1] - bl[1]) -
+                      (tl[1] - br[1]) * (tr[0] - bl[0]));
+  }
+  else
+  {
+    Vec fx = (v[0] + v[3] + v[7] + v[4])
+           - (v[1] + v[2] + v[6] + v[5]);
+    Vec fy = (v[0] + v[1] + v[5] + v[4])
+           - (v[3] + v[2] + v[6] + v[7]);
+    Vec fz = (v[0] + v[1] + v[2] + v[3])
+           - (v[4] + v[5] + v[6] + v[7]);
+      
+    const float v1 = -1/64. * det(fx, fy, fz);
+    const float d1 = det(v[5]-v[0], v[7]-v[0], v[2]-v[0]);
+    const float d2 = det(v[6]-v[3], v[6]-v[1], v[6]-v[4]);
+
+    return (16*v1 + d1 + d2) / 12.;
+  }
+}
+#endif
 
 /**
  * Returns the volume/surface of a cell
