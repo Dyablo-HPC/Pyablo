@@ -6,12 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenMP)
 find_package(HDF5 REQUIRED)
+find_package(pybind11 REQUIRED)
 
 
 include_directories(${HDF5_INCLUDE_DIRS})
 include_directories(includes)
 include_directories(external/pugixml/src)
-include_directories(external/pybind11/include)
 include_directories(external/stb)
 
 # Defining optional stuff
@@ -37,7 +37,6 @@ set(LIBS  pyablo_lib
           OpenMP::OpenMP_CXX)
 
 ##### Python module
-add_subdirectory(external/pybind11)
 pybind11_add_module(pyablo srcs/pyablo.cpp)
 target_link_libraries(pyablo PUBLIC ${LIBS})
 
