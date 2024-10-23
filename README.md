@@ -4,10 +4,10 @@ Analysis tools for dyablo
 
 ## Dependencies
 
-. Python 3.6+
-. HDF5 1.10+ (not tested on 1.8)
-. Cython
-. Pybind11
+- Python 3.6+
+- HDF5 1.10+ (not tested on 1.8)
+- Cython
+- Pybind11
 
 ## Initializing submodules
 
