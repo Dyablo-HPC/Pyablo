@@ -8,8 +8,6 @@ find_package(OpenMP)
 find_package(HDF5 REQUIRED)
 find_package(pybind11 REQUIRED)
 
-
-include_directories(${HDF5_INCLUDE_DIRS})
 include_directories(includes)
 include_directories(external/pugixml/src)
 include_directories(external/stb)
@@ -30,7 +28,7 @@ add_library(pyablo_lib ${SRCS})
 target_link_libraries(pyablo_lib OpenMP::OpenMP_CXX)
 
 set(LIBS  pyablo_lib 
-          ${HDF5_LIBRARIES}
+          HDF5::HDF5
           pybind11::module
           pybind11::lto
           pybind11::windows_extras
