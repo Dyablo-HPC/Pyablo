@@ -434,6 +434,9 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
   }
 
+  H5Sclose( memspace );
+  H5Sclose( space );
+  
   return value;
 }
 
@@ -1237,6 +1240,8 @@ RealArray Snapshot::readAllFloat(std::string attribute) {
   std::copy(values, values+nCells, res.begin());
 
   delete [] values;
+  H5Sclose( memspace );
+  H5Sclose( space );
   return res;
 }
 
