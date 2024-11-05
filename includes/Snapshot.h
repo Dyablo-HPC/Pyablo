@@ -36,23 +36,22 @@ class Snapshot {
   std::map<std::string, hid_t> handles; //!< Map of all the opened file handles
   std::vector<hid_t> data_handles;      //!< List of all the opened dataset handles
 
-  hid_t connectivity;                          //!< Handle to connectivity dataset
-  hid_t coordinates;                           //!< Handle to coordinates dataset
   std::map<std::string, Attribute> attributes; //!< Map of attributes
 
-  IntArray  index_buffer;  //!< Connectivity info (HEAVY !)
-  RealArray vertex_buffer; //!< Coordinates info  (HEAVY !)
+  std::vector<uint32_t> oct_coord;           //!< Logical Octant coordinates : i, j, k, level
 
   int nDim;       //!< Number of dimensions of the dataset   
-  int nElems;     //!< Number of indices per cell
-  int nCells;     //!< Number of cells stored in the file
-  int nVertices;  //!< Number of vertices stored in the file
+  int nOcts;     //!< Number of Octants stored in the file
+  int bx, by, bz;
+  BoundingBox domain;
 
   float time; //!< Current time of the snapshot
 
   static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
 
   bool show_progress_bars;
+
+  BoundingBox getOctBoundingBox(uint iOct);
  public:
   Snapshot() = default;
   ~Snapshot();
@@ -65,9 +64,10 @@ class Snapshot {
   void setName(std::string name);
   void setTime(float time);
   void setNDim(int nDim);
+  void setBlockSize(int bx, int by, int bz);
+  void setDomainBoundingBox(BoundingBox domain);
+  void setOctCoordinates(std::string handle, std::string xpath);
   void addH5Handle(std::string handle, std::string filename);
-  void setConnectivity(std::string handle, std::string xpath, int nCells);
-  void setCoordinates(std::string handle, std::string xpath, int nVertices);
   void addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center);
 
   /** Cell info and access **/
