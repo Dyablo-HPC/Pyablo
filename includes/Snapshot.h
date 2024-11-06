@@ -8,11 +8,86 @@ namespace dyablo {
 
 constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
 
+class Geometry_xmf
+{
+private:
+  IntArray  index_buffer;  //!< Connectivity info (HEAVY !)
+  RealArray vertex_buffer; //!< Coordinates info  (HEAVY !)
+
+  int nDim;       //!< Number of dimensions of the dataset   
+  int nCells;     //!< Number of cells stored in the file
+  int nVertices;  //!< Number of vertices stored in the file
+
+public:
+  // Specific setters
+  void setNDim(int nDim);
+  void setConnectivity(hid_t file_handle, std::string xpath, int nCells);
+  void setCoordinates(hid_t file_handle, std::string xpath, int nVertices);
+
+  // Common Geometry interface
+  int getNDim();
+  int getNCells();
+  BoundingBox getDomainBoundingBox();
+
+  void print();
+
+  BoundingBox getCellBoundingBox(uint iCell);
+
+  int getCellFromPosition(Vec v);  
+  Vec getCellCenter(uint iCell);
+  Vec getCellSize(uint iCell);
+  float getCellVolume(uint iCell);
+
+  UIntArray  getCellsFromPositions(VecArray v);  
+  VecArray   getCellCenter(UIntArray iCells);
+  VecArray   getCellSize(UIntArray iCells);
+  RealArray  getCellVolume(UIntArray iCells);
+
+};
+
+class Geometry_restart
+{
+private:
+  std::vector<uint32_t> oct_coord;           //!< Logical Octant coordinates : i, j, k, level
+
+  int nDim;       //!< Number of dimensions of the dataset   
+  int nOcts;     //!< Number of Octants stored in the file
+  int bx, by, bz;
+  BoundingBox domain;
+
+  BoundingBox getOctBoundingBox(uint iOct);
+
+public:
+  // Specific setters
+  void setNDim(int nDim);
+  void setBlockSize(int bx, int by, int bz);
+  void setDomainBoundingBox(BoundingBox domain);
+  void setOctCoordinates(hid_t file_handle, std::string xpath);
+
+  // Common Geometry interface
+  int getNCells();
+  BoundingBox getDomainBoundingBox();
+
+  void print();
+
+  BoundingBox getCellBoundingBox(uint iCell);
+
+  int getCellFromPosition(Vec v);  
+  Vec getCellCenter(uint iCell);
+  Vec getCellSize(uint iCell);
+  float getCellVolume(uint iCell);
+
+  UIntArray  getCellsFromPositions(VecArray v);  
+  VecArray   getCellCenter(UIntArray iCells);
+  VecArray   getCellSize(UIntArray iCells);
+  RealArray  getCellVolume(UIntArray iCells);  
+};
+
 /**
  * Class storing info about dyablo snapshots
  * 
  * A general note : The strategy here is to never store arrays directly in
- * ram except for coordinates and connectivity for rapid lookup. 
+ * ram except for geometry for rapid lookup. 
  * Future optimization might include streaming or partial buffering
  * but we do this for the moment to avoid any memory explosion for big runs
  * 
@@ -27,6 +102,7 @@ constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
  * @todo How to detach EOS stuff from hardcoding ? -> Maybe the whole thing
  *       should be directly based on the dyablo code to reuse modules as possible
  **/
+template< typename Geometry >
 class Snapshot {
  private:
   /**
@@ -36,24 +112,15 @@ class Snapshot {
   std::map<std::string, hid_t> handles; //!< Map of all the opened file handles
   std::vector<hid_t> data_handles;      //!< List of all the opened dataset handles
 
-  hid_t connectivity;                          //!< Handle to connectivity dataset
-  hid_t coordinates;                           //!< Handle to coordinates dataset
   std::map<std::string, Attribute> attributes; //!< Map of attributes
 
-  IntArray  index_buffer;  //!< Connectivity info (HEAVY !)
-  RealArray vertex_buffer; //!< Coordinates info  (HEAVY !)
-
   int nDim;       //!< Number of dimensions of the dataset   
-  int nElems;     //!< Number of indices per cell
-  int nCells;     //!< Number of cells stored in the file
-  int nVertices;  //!< Number of vertices stored in the file
-
   float time; //!< Current time of the snapshot
-
   static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
-
-  bool show_progress_bars;
  public:
+  // TODO make this private
+  Geometry geometry;
+
   Snapshot() = default;
   ~Snapshot();
 
@@ -64,33 +131,74 @@ class Snapshot {
   /** Snapshot reading/construction from Hdf5 **/
   void setName(std::string name);
   void setTime(float time);
-  void setNDim(int nDim);
-  void addH5Handle(std::string handle, std::string filename);
-  void setConnectivity(std::string handle, std::string xpath, int nCells);
-  void setCoordinates(std::string handle, std::string xpath, int nVertices);
+  void setNDim(uint nDim)
+  {
+    this->nDim = nDim;
+    geometry.setNDim(nDim);
+  }
+  hid_t addH5Handle(std::string handle, std::string filename);
   void addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center);
 
   /** Cell info and access **/
-  int getCellFromPosition(Vec v);
-  BoundingBox getCellBoundingBox(uint iCell);
-  Vec getCellCenter(uint iCell);
-  Vec getCellSize(uint iCell);
-  float getCellVolume(uint iCell);
-  float getTime();
+  int getNCells()
+  {
+    return geometry.getNCells();
+  }
+
+  int getCellFromPosition(Vec v)
+  {
+    return geometry.getCellFromPosition(v);
+  }
+  BoundingBox getCellBoundingBox(uint iCell)
+  {
+    return geometry.getCellBoundingBox(iCell);
+  }
+  Vec getCellCenter(uint iCell)
+  {
+    return geometry.getCellCenter(iCell);
+  }
+  Vec getCellSize(uint iCell)
+  {
+    return geometry.getCellSize(iCell);
+  }
+  float getCellVolume(uint iCell)
+  {
+    return geometry.getCellVolume(iCell);
+  }
+  
 
   /** Vector access 
    * @note: Please use these for large query as most of them are made in parallel
    **/
-  UIntArray  getCellsFromPositions(VecArray v);
-  VecArray   getCellCenter(UIntArray iCells);
-  VecArray   getCellSize(UIntArray iCells);
-  RealArray  getCellVolume(UIntArray iCells);
-  VecArray   getUniqueCells(VecArray pos);
+  UIntArray  getCellsFromPositions(VecArray v)
+  {
+    return geometry.getCellsFromPositions(v);
+  }
+  VecArray   getCellCenter(UIntArray iCells)
+  {
+    return geometry.getCellCenter(iCells);
+  }
+  VecArray   getCellSize(UIntArray iCells)
+  {
+    return geometry.getCellSize(iCells);
+  }
+  RealArray  getCellVolume(UIntArray iCells)
+  {
+    return geometry.getCellVolume(iCells);
+  }
+
+  BoundingBox getDomainBoundingBox()
+  {
+    return geometry.getDomainBoundingBox();
+  }
+
+  
+  VecArray getUniqueCells(VecArray pos);
 
   /** Domain info **/
-  int getNCells();
+  float getTime();
   bool hasAttribute(std::string attribute);
-  BoundingBox getDomainBoundingBox();
+  
   
   /** Generic attribute probing methods **/
   template<typename T>
@@ -161,7 +269,7 @@ class Snapshot {
   void fillSlice(Slice &slice);
 
   // Static variable for vectorized reading
-  static int vec_size;
+  static constexpr int vec_size = 1000000;
 };
 
 }

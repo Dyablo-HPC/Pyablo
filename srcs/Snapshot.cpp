@@ -1,23 +1,49 @@
 #include "Snapshot.h"
 #include <omp.h>
+#include <iostream>
 
 namespace dyablo {
 
-int Snapshot::vec_size = 1000000;
+namespace {
 
 /**
  * Static mapping between type names in xdmf file and H5T native types
  **/
-std::map<std::string, hid_t> Snapshot::type_corresp = {
-  {"Int", H5T_NATIVE_INT},
-  {"Float", H5T_NATIVE_FLOAT}
-};
+hid_t hdf5_type_corresp(std::string& type_name)
+{
+  static std::map<std::string, hid_t> type_map = {
+    {"Int", H5T_NATIVE_INT},
+    {"Float", H5T_NATIVE_FLOAT},
+    {"Double", H5T_NATIVE_DOUBLE}
+  };
+
+  return type_map[ type_name ];
+}
+
+template< typename T >
+inline hid_t hdf5_type_id() 
+{
+  static_assert( !std::is_same_v<T,T>, "Unknown type" );
+  return 0;
+}
+template<> inline hid_t hdf5_type_id<float>   (){ return H5T_NATIVE_FLOAT; } 
+template<> inline hid_t hdf5_type_id<double>  (){ return H5T_NATIVE_DOUBLE; } 
+template<> inline hid_t hdf5_type_id<uint16_t>(){ return H5T_NATIVE_UINT16; } 
+template<> inline hid_t hdf5_type_id<uint32_t>(){ return H5T_NATIVE_UINT32; } 
+template<> inline hid_t hdf5_type_id<uint64_t>(){ return H5T_NATIVE_UINT64; }
+template<> inline hid_t hdf5_type_id<int16_t> (){ return H5T_NATIVE_INT16; } 
+template<> inline hid_t hdf5_type_id<int32_t> (){ return H5T_NATIVE_INT32; } 
+template<> inline hid_t hdf5_type_id<int64_t> (){ return H5T_NATIVE_INT64; } 
+
+} // namespace
 
 /**
  * Destructor
  * Closes all HDF5 handles opened during the lifetime of the Snapshot
  **/
-Snapshot::~Snapshot() {
+template<typename G>
+Snapshot<G>::~Snapshot() {
+  //this->close();
 }
 
 /**
@@ -25,21 +51,36 @@ Snapshot::~Snapshot() {
  * This is not done in the destructor to ensure compatibility
  * with pybind11 !
  **/
-void Snapshot::close() {
+template<typename G>
+void Snapshot<G>::close() {
   for (auto dh: data_handles)
     H5Dclose(dh);
 
+  data_handles.clear();
+
   for (auto [k, h]: handles)
     H5Fclose(h);
+
+  handles.clear();
+}
+
+void Geometry_restart::print() {
+  std::cout << " . Number of dimensions : " << nDim << std::endl;
+  std::cout << " . Grid has " << nOcts*bx*by*bz << " cells" << std::endl;
+}
+
+void Geometry_xmf::print() {
+  std::cout << " . Number of dimensions : " << nDim << std::endl;
+  std::cout << " . Grid has " << nVertices << " vertices and " << nCells << " cells" << std::endl;
 }
 
 /**
  * Pretty prints a brief summary of the snapshot
  **/
-void Snapshot::print() {
+template<typename G>
+void Snapshot<G>::print() {
   std::cout << "Snapshot : " << name << std::endl;
-  std::cout << " . Number of dimensions : " << nDim << std::endl;
-  std::cout << " . Grid has " << nVertices << " vertices and " << nCells << " cells" << std::endl;
+  geometry.print();
   std::cout << " . Attribute list : " << std::endl;
   for (auto [name, att]: attributes)
     std::cout << "   o " << name << " (" << att.type << ")" << std::endl;
@@ -50,7 +91,8 @@ void Snapshot::print() {
  * Sets the associated name of the snapshot
  * @param name the name to give to the snapshot
  **/
-void Snapshot::setName(std::string name) {
+template<typename G>
+void Snapshot<G>::setName(std::string name) {
   this->name = name;
 }
 
@@ -58,7 +100,8 @@ void Snapshot::setName(std::string name) {
  * Sets the associated time of the snapshot
  * @param time the time of the current snapshot
  **/
-void Snapshot::setTime(float time) {
+template<typename G>
+void Snapshot<G>::setTime(float time) {
   this->time = time;
 }
 
@@ -67,9 +110,22 @@ void Snapshot::setTime(float time) {
  * This also sets the size of an element connectivity in memory
  * @param ndim the number of dimensions. Should be 2 or 3.
  **/
-void Snapshot::setNDim(int nDim) {
+void Geometry_xmf::setNDim(int nDim) {
   this->nDim = nDim;
-  nElems = (nDim == 2 ? 4 : 8);
+}
+
+void Geometry_restart::setNDim(int nDim) {
+  this->nDim = nDim;
+}
+
+void Geometry_restart::setBlockSize(int bx, int by, int bz) {
+  this->bx = bx;
+  this->by = by;
+  this->bz = bz;
+}
+
+void Geometry_restart::setDomainBoundingBox(BoundingBox domain) {
+  this->domain = domain;
 }
 
 /**
@@ -77,7 +133,8 @@ void Snapshot::setNDim(int nDim) {
  * @param handle the string reference to the actual file
  * @param filename the complete path to the hdf5 file
  **/
-void Snapshot::addH5Handle(std::string handle, std::string filename) {
+template<typename G>
+hid_t Snapshot<G>::addH5Handle(std::string handle, std::string filename) {
   if (handles.count(handle) == 0) {
     hid_t hid = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
     if (hid < 0) {
@@ -86,6 +143,7 @@ void Snapshot::addH5Handle(std::string handle, std::string filename) {
     }
     handles[handle] = hid;
   }
+  return handles.at(handle);
 }
 
 /**
@@ -95,23 +153,23 @@ void Snapshot::addH5Handle(std::string handle, std::string filename) {
  * @param xpath the path to the dataset in hdf5 space
  * @param nCells the number of cells in the dataset
  **/
-void Snapshot::setConnectivity(std::string handle, std::string xpath, int nCells) {
-  connectivity = H5Dopen2(handles[handle], xpath.c_str(), H5P_DEFAULT);
+void Geometry_xmf::setConnectivity(hid_t file_handle, std::string xpath, int nCells) {
+  hid_t connectivity = H5Dopen2(file_handle, xpath.c_str(), H5P_DEFAULT);
   if (connectivity < 0) {
-    std::cerr << "ERROR : Could not access connectivity info at " << handle << ":" << xpath << std::endl;
+    std::cerr << "ERROR : Could not access connectivity info at " << xpath << ":" << xpath << std::endl;
     std::exit(1);
   }
   this->nCells = nCells;
-  data_handles.push_back(connectivity);
 
   // We read all the indices in memory
   uint nElem = (nDim == 2 ? 4 : 8);
   index_buffer.resize(nCells*nElem);
   herr_t status = H5Dread(connectivity, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, H5P_DEFAULT, index_buffer.data());
+  H5Dclose(connectivity);
   if (status < 0) {
     std::cerr << "ERROR while reading coordinates !" << std::endl;
     std::exit(1);
-  }
+  }  
 }
 
 /**
@@ -121,22 +179,48 @@ void Snapshot::setConnectivity(std::string handle, std::string xpath, int nCells
  * @param xpath the path to the dataset in hdf5 space
  * @param nVertices the number of vertices in the dataset
  **/
-void Snapshot::setCoordinates(std::string handle, std::string xpath, int nVertices) {
-  coordinates = H5Dopen2(handles[handle], xpath.c_str(), H5P_DEFAULT);
+void Geometry_xmf::setCoordinates(hid_t file_handle, std::string xpath, int nVertices) {
+  hid_t coordinates = H5Dopen2(file_handle, xpath.c_str(), H5P_DEFAULT);
   if (coordinates < 0) {
-    std::cerr << "ERROR : Could not access coordinates info at " << handle << "/" << xpath << std::endl;
+    std::cerr << "ERROR : Could not access coordinates info at " << xpath << std::endl;
     std::exit(1);
   }
   this->nVertices = nVertices;
-  data_handles.push_back(coordinates);
 
   // We read all the coords in memory
   vertex_buffer.resize(nVertices*CoordSize);
   herr_t status = H5Dread(coordinates, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, vertex_buffer.data());
+  H5Dclose(coordinates);
   if (status < 0) {
     std::cerr << "ERROR while reading coordinates !" << std::endl;
     std::exit(1);
+  }  
+}
+
+void Geometry_restart::setOctCoordinates(hid_t file_handle, std::string xpath) {
+  hid_t octants = H5Dopen2(file_handle, xpath.c_str(), H5P_DEFAULT);
+  if (octants < 0) {
+    std::cerr << "ERROR : Could not access coordinates info at " << xpath << std::endl;
+    std::exit(1);
   }
+
+  {
+    hid_t space = H5Dget_space(octants);
+    hsize_t dims[2];
+    H5Sget_simple_extent_dims(space, dims, nullptr);
+    this->nOcts = dims[0];
+    H5Sclose(space);
+  }
+
+  // We read all the coords in memory
+  oct_coord.resize(nOcts*4);
+
+  herr_t status = H5Dread(octants, H5T_NATIVE_UINT32, H5S_ALL, H5S_ALL, H5P_DEFAULT, oct_coord.data());
+  H5Dclose( octants );
+  if (status < 0) {
+    std::cerr << "ERROR while reading octant coordinates !" << std::endl;
+    std::exit(1);
+  }  
 }
 
 /**
@@ -147,7 +231,8 @@ void Snapshot::setCoordinates(std::string handle, std::string xpath, int nVertic
  * @param type the type of data stored in the file
  * @param center where is located the data in the cell
  **/
-void Snapshot::addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center) {
+template<typename G>
+void Snapshot<G>::addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center) {
   hid_t att_handle = H5Dopen2(handles[handle], xpath.c_str(), H5P_DEFAULT);
   if (att_handle < 0) {
     std::cout << "ERROR : Could not access attribute info at " << handle << "/" << xpath << std::endl;
@@ -159,12 +244,47 @@ void Snapshot::addAttribute(std::string handle, std::string xpath, std::string n
   data_handles.push_back(att_handle);
 }
 
+namespace{
+
+constexpr int LEVEL = 3;
+
+uint32_t& get_oct_coord(std::vector<uint32_t>& oct_coord, int iOct, int var)
+{
+  return oct_coord[4*iOct + var];
+}
+
+uint32_t pow_2( int x )
+{
+  return 1 << x;
+}
+
+// TODO getOctBoundingBox
+
+} // namespace
+
+BoundingBox Geometry_restart::getOctBoundingBox(uint iOct) {
+  int level = get_oct_coord(oct_coord, iOct, LEVEL);  
+  
+  Vec xmin = this->domain.first;
+  Vec L = domain.second - domain.first;
+  uint32_t pow_2_level = pow_2( level );
+  Vec oct_size = L/pow_2_level;
+  Vec oct_origin {
+    xmin[IX] + oct_size[IX] * get_oct_coord(oct_coord, iOct, IX),
+    xmin[IY] + oct_size[IY] * get_oct_coord(oct_coord, iOct, IY),
+    xmin[IZ] + oct_size[IZ] * get_oct_coord(oct_coord, iOct, IZ)
+  };
+  
+  return {oct_origin, oct_origin + oct_size};
+}
+
+
 /**
  * Finds which element corresponds to a specific location
  * @param pos the position of the element to probe
  * @return an integer corresponding to the cell id holding position pos
  **/
-int Snapshot::getCellFromPosition(Vec pos) {
+int Geometry_xmf::getCellFromPosition(Vec pos) {
   for (uint iCell=0; iCell < nCells; ++iCell) {
     auto [min, max] = getCellBoundingBox(iCell);
 
@@ -177,13 +297,34 @@ int Snapshot::getCellFromPosition(Vec pos) {
   return -1;
 }
 
+int Geometry_restart::getCellFromPosition(Vec pos) {
+  for (uint iOct=0; iOct < nOcts; ++iOct) {
+    auto [min, max] = getOctBoundingBox(iOct);
+
+    if (min[0] <= pos[0] && max[0] >= pos[0] 
+      && min[1] <= pos[1] && max[1] >= pos[1]
+      && (nDim==2 || (min[2] <= pos[2] && max[2] >= pos[2])))
+    {
+      int i = std::floor( bx * (pos[0]-min[0]) / (max[0]-min[0]) );
+      int j = std::floor( by * (pos[1]-min[1]) / (max[1]-min[1]) );
+      int k = std::floor( bz * (pos[2]-min[2]) / (max[2]-min[2]) );
+
+      int iCell = i + bx * ( j + by * ( k + bz * iOct ) ); 
+
+      return iCell; 
+    }
+  }
+
+  return -1;
+}
+
 /**
  * Finds which elements correspond to specific locations
  * This function can be especially long on large data sets !
  * @param pos a vector of positions to identify
  * @return a vector of integers corresponding to the cell ids holding the positions
  **/
-UIntArray Snapshot::getCellsFromPositions(VecArray pos) {
+UIntArray Geometry_xmf::getCellsFromPositions(VecArray pos) {
   UIntArray res(pos.size());
   BoolArray found(pos.size(), false);
 
@@ -208,14 +349,48 @@ UIntArray Snapshot::getCellsFromPositions(VecArray pos) {
   return res;
 }
 
+UIntArray Geometry_restart::getCellsFromPositions(VecArray pos) {
+  UIntArray res(pos.size());
+  BoolArray found(pos.size(), false);
+
+  int nPos = pos.size();
+  #pragma omp parallel for shared(res, found), schedule(dynamic)
+  for (uint iOct=0; iOct < nOcts; ++iOct) {
+    auto [min, max] = getOctBoundingBox(iOct);
+
+    for (int iPos=0; iPos < nPos; ++iPos) {
+      if (found[iPos])
+        continue;
+
+      Vec &p = pos[iPos];
+      if (min[0] <= p[0] && max[0] >= p[0] 
+          && min[1] <= p[1] && max[1] >= p[1]
+          && (nDim==2 || (min[2] <= p[2] && max[2] >= p[2]))) {
+        int i = std::floor( bx * (p[0]-min[0]) / (max[0]-min[0]) );
+        int j = std::floor( by * (p[1]-min[1]) / (max[1]-min[1]) );
+        int k = std::floor( bz * (p[2]-min[2]) / (max[2]-min[2]) );
+
+        int iCell = i + bx * ( j + by * ( k + bz * iOct ) );  
+        
+        res[iPos] = iCell;        
+        found[iPos] = true;
+      }
+    }
+  }  
+  return res;
+}
+
+
 /**
  * Returns the bounding box corresponding to a cell
  * @param iCell the id of the cell to probe
  * @return a pair of Vec storing the minimum 
  *         and maximum coordinates of the bounding box
  **/
-BoundingBox Snapshot::getCellBoundingBox(uint iCell) {
+BoundingBox Geometry_xmf::getCellBoundingBox(uint iCell) {
   Vec min, max;
+
+  uint nElems = (nDim == 2 ? 4 : 8);
 
   int c0 = index_buffer[iCell*nElems];
   for (int i=0; i < nDim; ++i) {
@@ -235,13 +410,21 @@ BoundingBox Snapshot::getCellBoundingBox(uint iCell) {
   return std::make_pair(min, max);
 }
 
+BoundingBox Geometry_restart::getCellBoundingBox(uint iCell) {
+  Vec size = getCellSize(iCell);
+  Vec c = getCellCenter(iCell);
+
+  return std::make_pair(c - size * 0.5 , c + size * 0.5);
+}
+
 /**
  * Returns the center of the given cell
  * @param iCell the index of the cell to probe
  * @return a vector giving the center position of the cell iCell
  **/
-Vec Snapshot::getCellCenter(uint iCell) {
+Vec Geometry_xmf::getCellCenter(uint iCell) {
   Vec out{0.0};
+  uint nElems = (nDim == 2 ? 4 : 8);
   for (int i=0; i < nElems; ++i) {
     int ci = index_buffer[iCell*nElems+i];
     float *coords = &vertex_buffer[ci*CoordSize];
@@ -258,13 +441,32 @@ Vec Snapshot::getCellCenter(uint iCell) {
   return out;
 }
 
+Vec Geometry_restart::getCellCenter(uint iCell) {
+  uint iOct = iCell / (bx*by*bz);
+  uint pos_in_block = iCell % (bx*by*bz);
+  uint k = pos_in_block / (bx*by);
+  uint j = (pos_in_block % (bx*by)) / by ;
+  uint i = pos_in_block % bx ;
+
+  Vec xmin = this->domain.first;
+  Vec cell_size = getCellSize( iCell );
+  Vec oct_center{
+    xmin[IX] + cell_size[IX] * (bx * get_oct_coord(oct_coord, iOct, IX) + i + 0.5),
+    xmin[IY] + cell_size[IY] * (by * get_oct_coord(oct_coord, iOct, IY) + j + 0.5),
+    xmin[IZ] + nDim==2 ? 0 : cell_size[IZ] * (bz * get_oct_coord(oct_coord, iOct, IZ) + k + 0.5)
+  };
+  
+  return oct_center;
+}
+
 /**
  * Returns the centers of given cells
  * @param iCells the indices of the cells to probe
  * @return a vector of positions corresponding to the center of the cells
  **/
-VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
+VecArray Geometry_xmf::getCellCenter(std::vector<uint> iCells) {
   uint nPos = iCells.size();
+  uint nElems = (nDim == 2 ? 4 : 8);
   VecArray out(nPos);
   
   #pragma omp parallel for schedule(dynamic)
@@ -288,16 +490,40 @@ VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
   return out;
 }
 
+VecArray Geometry_restart::getCellCenter(std::vector<uint> iCells) {
+  uint nPos = iCells.size();
+  VecArray out(nPos);
+  
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < nPos; ++i) {
+    out[i] = getCellCenter(iCells[i]);
+  }
+
+  return out;
+}
+
 /**
  * Returns the size of a cell
  * @param iCell the index of the cell to probe
  * @return a vector indicating the size of the cell along each axis
  **/
-Vec Snapshot::getCellSize(uint iCell) {
+Vec Geometry_xmf::getCellSize(uint iCell) {
   BoundingBox bb = getCellBoundingBox(iCell);
   Vec out;
   for (int i=0; i < nDim; ++i)
     out[i] = bb.second[i] - bb.first[i];
+  return out;
+}
+
+Vec Geometry_restart::getCellSize(uint iCell) {
+  uint iOct = iCell / (bx*by*bz);
+  int level = get_oct_coord(oct_coord, iOct, LEVEL);
+  uint32_t pow_2_level = pow_2( level );
+  Vec L = domain.second - domain.first;
+  Vec out {
+    L[IX]/bx/pow_2_level, 
+    L[IY]/by/pow_2_level, 
+    nDim==2 ? 1 : L[IZ]/bz/pow_2_level };
   return out;
 }
 
@@ -306,17 +532,28 @@ Vec Snapshot::getCellSize(uint iCell) {
  * @param iCells a vector of cells to probe
  * @return a vector of Vec indicating the size of each cell probed
  **/
-VecArray Snapshot::getCellSize(std::vector<uint> iCells) {
+template< typename Geometry >
+VecArray getCellSize_aux(Geometry& g, std::vector<uint> iCells) {
   uint nSizes = iCells.size();
   VecArray out(nSizes);
   
   #pragma omp parallel for schedule(dynamic)
   for (int i=0; i < nSizes; ++i) {
     uint iCell = iCells[i];
-    out[i] = getCellSize(iCell);
+    out[i] = g.getCellSize(iCell);
   }
 
   return out;
+}
+
+VecArray Geometry_xmf::getCellSize(std::vector<uint> iCells)
+{
+  return getCellSize_aux(*this, iCells);
+}
+
+VecArray Geometry_restart::getCellSize(std::vector<uint> iCells)
+{
+  return getCellSize_aux(*this, iCells);
 }
 
 /**
@@ -324,7 +561,7 @@ VecArray Snapshot::getCellSize(std::vector<uint> iCells) {
  * @param iCell the index of the cell to probe
  * @return a float indicating the surface in 2D or the volume in 3D of the cell
  **/
-float Snapshot::getCellVolume(uint iCell) {
+float Geometry_xmf::getCellVolume(uint iCell) {
   BoundingBox bb = getCellBoundingBox(iCell);
   float out = bb.second[0] - bb.first[0];
   for (int i=1; i < nDim; ++i)
@@ -332,29 +569,44 @@ float Snapshot::getCellVolume(uint iCell) {
   return out;
 }
 
-/**
- * Returns the volume/surface of a cell
- * @param iCells a vector of cells to probe
- * @return a vector of floats indicating the volume/surface of each cell probed
- **/
-RealArray Snapshot::getCellVolume(std::vector<uint> iCells) {
+float Geometry_restart::getCellVolume(uint iCell) {
+  auto size = getCellSize(iCell);
+  return size[0] * size[1] * size[2];
+}
+
+template<typename Geometry>
+RealArray getCellVolume_aux(Geometry& g, std::vector<uint> iCells) {
   uint nSizes = iCells.size();
   RealArray out(nSizes);
   
   #pragma omp parallel for schedule(dynamic)
   for (int i=0; i < nSizes; ++i) {
     uint iCell = iCells[i];
-    out[i] = getCellVolume(iCell);
+    out[i] = g.getCellVolume(iCell);
   }
 
   return out;
+}
+/**
+ * Returns the volume/surface of a cell
+ * @param iCells a vector of cells to probe
+ * @return a vector of floats indicating the volume/surface of each cell probed
+ **/
+RealArray Geometry_xmf::getCellVolume(std::vector<uint> iCells)
+{
+  return getCellVolume_aux( *this, iCells );
+}
+RealArray Geometry_restart::getCellVolume(std::vector<uint> iCells)
+{
+  return getCellVolume_aux( *this, iCells );
 }
 
 /**
  * Gets the associated time of the snapshot
  * @return the time of the current snapshot
  **/
-float Snapshot::getTime() {
+template<typename G>
+float Snapshot<G>::getTime() {
   return time;
 }
 
@@ -362,8 +614,11 @@ float Snapshot::getTime() {
  * Returns the number of cells in the domain
  * @return the number of cells in the domain
  **/
-int Snapshot::getNCells() {
+int Geometry_xmf::getNCells() {
   return nCells;
+}
+int Geometry_restart::getNCells() {
+  return nOcts * bx*by*bz;
 }
 
 /**
@@ -371,7 +626,8 @@ int Snapshot::getNCells() {
  * @param attribute the name of the attribute to test
  * @returns a boolean indicating if attribute is stored in the Snapshot
  **/
-bool Snapshot::hasAttribute(std::string attribute) {
+template<typename G>
+bool Snapshot<G>::hasAttribute(std::string attribute) {
   return attributes.count(attribute) > 0;
 }
 
@@ -380,7 +636,7 @@ bool Snapshot::hasAttribute(std::string attribute) {
  * @note This is a very naive implementation where we consider only a cartesian-box
  *       domain ! This will not work using other geometries
  **/
-BoundingBox Snapshot::getDomainBoundingBox() {
+BoundingBox Geometry_xmf::getDomainBoundingBox() {
   BoundingBox out{getCellCenter(0), getCellCenter(nCells-1)};
   Vec s0 = getCellSize(0);
   Vec s1 = getCellSize(nCells-1);
@@ -389,6 +645,9 @@ BoundingBox Snapshot::getDomainBoundingBox() {
     out.second[i] += s1[i]*0.5;
   }
   return out;
+}
+BoundingBox Geometry_restart::getDomainBoundingBox() {
+  return domain;
 }
 
 /**
@@ -403,8 +662,9 @@ BoundingBox Snapshot::getDomainBoundingBox() {
  * @todo Check that attribute actually exists
  * @todo Check for h5 errors while reading
  **/
+template<typename G>
 template<typename T>
-T Snapshot::probeLocation(Vec pos, std::string attribute) {
+T Snapshot<G>::probeLocation(Vec pos, std::string attribute) {
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
     return 0;
@@ -414,7 +674,9 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
   int iCell = getCellFromPosition(pos);
 
   Attribute &att = attributes[attribute];
-  hid_t data_type = type_corresp[att.type];
+  hid_t data_type = hdf5_type_corresp(att.type);
+  if( data_type != hdf5_type_id<T>() )
+    std::cerr << "ERROR : Attribute " << attribute << " HDF5 type mismatch" << std::endl;
 
   // Selecting the element in the dataset
   herr_t status;
@@ -427,12 +689,7 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
 
   T value;
 
-  if (data_type == H5T_NATIVE_INT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
-  }
-  else if (data_type == H5T_NATIVE_FLOAT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
-  }
+  status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
 
   H5Sclose( memspace );
   H5Sclose( space );
@@ -452,8 +709,9 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
  * @todo Check that attribute actually exists
  * @todo Check for h5 errors while reading
  **/
+template<typename G>
 template<typename T>
-std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attribute) {
+std::vector<T> Snapshot<G>::probeCells(std::vector<uint> iCells, std::string attribute) {
   std::vector<T> out;
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
@@ -469,7 +727,9 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
 
 
   Attribute &att = attributes[attribute];
-  hid_t data_type = type_corresp[att.type];
+  hid_t data_type = hdf5_type_corresp(att.type);
+  if( data_type != hdf5_type_id<T>() )
+    std::cerr << "ERROR : Attribute " << attribute << " HDF5 type mismatch" << std::endl;
 
   // Selecting the element in the dataset
   herr_t status;
@@ -480,13 +740,8 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
   hid_t memspace = H5Screate_simple(1, &d, NULL);
 
   out.resize(nCells);
-
-  if (data_type == H5T_NATIVE_INT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
-  }
-  else if (data_type == H5T_NATIVE_FLOAT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
-  }
+  
+  status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
 
   delete [] select;
   H5Sclose(memspace);
@@ -507,8 +762,9 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
  * @todo Check that attribute actually exists
  * @todo Check for h5 errors while reading
  **/
+template<typename G>
 template<typename T>
-std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
+std::vector<T> Snapshot<G>::probeLocation(VecArray pos, std::string attribute) {
   std::vector<T> out;
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
@@ -524,7 +780,9 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
     select[i] = (hsize_t)iCells[i];
 
   Attribute &att = attributes[attribute];
-  hid_t data_type = type_corresp[att.type];
+  hid_t data_type = hdf5_type_corresp(att.type);
+  if( data_type != hdf5_type_id<T>() )
+    std::cerr << "ERROR : Attribute " << attribute << " HDF5 type mismatch" << std::endl;
 
   // Selecting the element in the dataset
   herr_t status;
@@ -536,12 +794,7 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
 
   out.resize(nPos);
 
-  if (data_type == H5T_NATIVE_INT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
-  }
-  else if (data_type == H5T_NATIVE_FLOAT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
-  }
+  status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
 
   delete [] select;
   H5Sclose(memspace);
@@ -555,11 +808,13 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
  * @param pos the position to probe
  * @return the density at position pos
  **/
-float Snapshot::probeDensity(Vec pos) {
+template<typename G>
+float Snapshot<G>::probeDensity(Vec pos) {
   return probeLocation<float>(pos, "rho");
 }
 
-float Snapshot::probeQuantity(Vec pos, std::string attribute) {
+template<typename G>
+float Snapshot<G>::probeQuantity(Vec pos, std::string attribute) {
   return probeLocation<float>(pos, attribute);
 }
 
@@ -568,7 +823,8 @@ float Snapshot::probeQuantity(Vec pos, std::string attribute) {
  * @param pos the position to probe
  * @return the total energy at position pos
  **/
-float Snapshot::probeTotalEnergy(Vec pos) {
+template<typename G>
+float Snapshot<G>::probeTotalEnergy(Vec pos) {
   return probeLocation<float>(pos, "e_tot");
 }
 
@@ -577,7 +833,8 @@ float Snapshot::probeTotalEnergy(Vec pos) {
  * @param pos the position to probe
  * @return the total energy at position pos
  **/
-float Snapshot::probePressure(Vec pos) {
+template<typename G>
+float Snapshot<G>::probePressure(Vec pos) {
   return probeLocation<float>(pos, "P");
 }
 
@@ -586,7 +843,8 @@ float Snapshot::probePressure(Vec pos) {
  * @param pos the position to probe
  * @return the Mach number of the flow at position pos
  **/
-float Snapshot::probeMach(Vec pos) {
+template<typename G>
+float Snapshot<G>::probeMach(Vec pos) {
   return probeLocation<float>(pos, "Mach");
 }
 
@@ -595,7 +853,8 @@ float Snapshot::probeMach(Vec pos) {
  * @param pos the position to probe
  * @return the momentum at position pos
  **/
-Vec Snapshot::probeMomentum(Vec pos) {
+template<typename G>
+Vec Snapshot<G>::probeMomentum(Vec pos) {
   Vec res;
   res[0] = probeLocation<float>(pos, "rho_vx");
   res[1] = probeLocation<float>(pos, "rho_vy");
@@ -610,7 +869,8 @@ Vec Snapshot::probeMomentum(Vec pos) {
  * @param pos the position to probe
  * @return the velocity at position pos
  **/
-Vec Snapshot::probeVelocity(Vec pos) {
+template<typename G>
+Vec Snapshot<G>::probeVelocity(Vec pos) {
   Vec res = probeMomentum(pos);
   float rho = probeLocation<float>(pos, "rho");
   for (int i=0; i < nDim; ++i)
@@ -623,7 +883,8 @@ Vec Snapshot::probeVelocity(Vec pos) {
  * @param pos the position to probe
  * @return the refinement level at position pos
  **/
-int Snapshot::probeLevel(Vec pos) {
+template<typename G>
+int Snapshot<G>::probeLevel(Vec pos) {
   return probeLocation<int>(pos, "level");
 }
 
@@ -632,7 +893,8 @@ int Snapshot::probeLevel(Vec pos) {
  * @param pos the position to probe
  * @return the mpi-rank at position pos
  **/
-int Snapshot::probeRank(Vec pos) {
+template<typename G>
+int Snapshot<G>::probeRank(Vec pos) {
   return probeLocation<int>(pos, "rank");
 }
 
@@ -641,7 +903,8 @@ int Snapshot::probeRank(Vec pos) {
  * @param pos a position to probe
  * @return the octant index at position pos
  **/
-int Snapshot::probeOctant(Vec pos) {
+template<typename G>
+int Snapshot<G>::probeOctant(Vec pos) {
   return probeLocation<int>(pos, "iOct");
 }
 
@@ -650,11 +913,13 @@ int Snapshot::probeOctant(Vec pos) {
  * @param pos a vector of positions to probe
  * @return the density at positions pos
  **/
-RealArray Snapshot::probeDensity(VecArray pos) {
+template<typename G>
+RealArray Snapshot<G>::probeDensity(VecArray pos) {
   return probeLocation<float>(pos, "rho");
 }
 
-RealArray Snapshot::probeQuantity(VecArray pos, std::string attribute) {
+template<typename G>
+RealArray Snapshot<G>::probeQuantity(VecArray pos, std::string attribute) {
   return probeLocation<float>(pos, attribute);
 }
 
@@ -663,7 +928,8 @@ RealArray Snapshot::probeQuantity(VecArray pos, std::string attribute) {
  * @param pos a vector of positions to probe
  * @return the pressure at positions pos
  **/
-RealArray Snapshot::probePressure(VecArray pos) {
+template<typename G>
+RealArray Snapshot<G>::probePressure(VecArray pos) {
   return probeLocation<float>(pos, "P");
 }
 
@@ -672,7 +938,8 @@ RealArray Snapshot::probePressure(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the total energy at positions pos
  **/
-RealArray Snapshot::probeTotalEnergy(VecArray pos) {
+template<typename G>
+RealArray Snapshot<G>::probeTotalEnergy(VecArray pos) {
   return probeLocation<float>(pos, "e_tot");
 }
 
@@ -681,7 +948,8 @@ RealArray Snapshot::probeTotalEnergy(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the Mach number of the flow at the position
  **/
-RealArray Snapshot::probeMach(VecArray pos) {
+template<typename G>
+RealArray Snapshot<G>::probeMach(VecArray pos) {
   return probeLocation<float>(pos, "Mach");
 }
 
@@ -690,7 +958,8 @@ RealArray Snapshot::probeMach(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the momentum at positions pos
  **/
-VecArray Snapshot::probeMomentum(VecArray pos) {
+template<typename G>
+VecArray Snapshot<G>::probeMomentum(VecArray pos) {
   RealArray res[3];
   res[0] = probeLocation<float>(pos, "rho_vx");
   res[1] = probeLocation<float>(pos, "rho_vy");
@@ -711,7 +980,8 @@ VecArray Snapshot::probeMomentum(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the velocity at positions pos
  **/
-VecArray Snapshot::probeVelocity(VecArray pos) {
+template<typename G>
+VecArray Snapshot<G>::probeVelocity(VecArray pos) {
   VecArray  res = probeMomentum(pos);
   RealArray rho = probeLocation<float>(pos, "rho");
   for (int i=0; i < pos.size(); ++i) {
@@ -726,7 +996,8 @@ VecArray Snapshot::probeVelocity(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the refinement level at positions pos
  **/
-IntArray Snapshot::probeLevel(VecArray pos) {
+template<typename G>
+IntArray Snapshot<G>::probeLevel(VecArray pos) {
   return probeLocation<int>(pos, "level");
 }
 
@@ -735,7 +1006,8 @@ IntArray Snapshot::probeLevel(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the mpi-rank at positions pos
  **/
-IntArray Snapshot::probeRank(VecArray pos) {
+template<typename G>
+IntArray Snapshot<G>::probeRank(VecArray pos) {
   return probeLocation<int>(pos, "rank");
 }
 
@@ -744,7 +1016,8 @@ IntArray Snapshot::probeRank(VecArray pos) {
  * @param pos a vector of positions to probe
  * @return the octant indices at positions pos
  **/
-IntArray Snapshot::probeOctant(VecArray pos) {
+template<typename G>
+IntArray Snapshot<G>::probeOctant(VecArray pos) {
   return probeLocation<int>(pos, "iOct");
 }
 
@@ -754,7 +1027,8 @@ IntArray Snapshot::probeOctant(VecArray pos) {
  * @param pos a vector of positions
  * @return the center of the unique cells along the trajectory pos
  **/
-VecArray Snapshot::getUniqueCells(VecArray pos) {
+template<typename G>
+VecArray Snapshot<G>::getUniqueCells(VecArray pos) {
   auto iCells = getCellsFromPositions(pos);
   VecArray positions;
 
@@ -777,7 +1051,8 @@ VecArray Snapshot::getUniqueCells(VecArray pos) {
  * @param iOct the id of the octant to retrieve
  * @return a vector of indices corresponding to the cell ids in octant iOct
  **/
-IntArray Snapshot::getBlock(uint iOct) {
+template<typename G>
+IntArray Snapshot<G>::getBlock(uint iOct) {
   IntArray out;
   if (attributes.count("iOct") == 0) {
     std::cerr << "ERROR : Cannot retrieve block as octant information is not available" << std::endl;
@@ -799,7 +1074,8 @@ IntArray Snapshot::getBlock(uint iOct) {
  * @todo abstract to any variable type
  * @todo abstract to any refinement error calculation
  **/
-float Snapshot::getRefinementCriterion(Vec pos) {
+template<typename G>
+float Snapshot<G>::getRefinementCriterion(Vec pos) {
   // Retrieving cells, sizes and domain bounding box
   BoundingBox bb = getDomainBoundingBox();
   uint iCell = getCellFromPosition(pos);
@@ -878,13 +1154,16 @@ float Snapshot::getRefinementCriterion(Vec pos) {
  * Returns the integrated total mass over the domain
  * @return the total mass in the domain
  **/
-float Snapshot::getTotalMass() {
+template<typename G>
+float Snapshot<G>::getTotalMass() {
   // We require the density and the volume of each cell in the domain
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
   float total_mass = 0.0f;
   RealArray densities;
   RealArray cell_volumes;
+
+  int nCells = this->getNCells();
 
   int base_id = 0;
   int end_id;
@@ -913,7 +1192,8 @@ float Snapshot::getTotalMass() {
  * Returns the integrated total energy over the domain
  * @return the total mass in the domain
  **/
-float Snapshot::getTotalEnergy() {
+template<typename G>
+float Snapshot<G>::getTotalEnergy() {
   // We require the density and the volume of each cell in the domain
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
@@ -921,6 +1201,8 @@ float Snapshot::getTotalEnergy() {
   RealArray energies;
   RealArray density;
   RealArray cell_volumes;
+
+  int nCells = this->getNCells();
 
   int base_id = 0;
   int end_id;
@@ -949,13 +1231,16 @@ float Snapshot::getTotalEnergy() {
  * Returns the integrated total internal energy over the domain
  * @return the total internal energy density in the domain
  **/
-float Snapshot::getTotalInternalEnergy(double gamma) {
+template<typename G>
+float Snapshot<G>::getTotalInternalEnergy(double gamma) {
   // We require the density and the volume of each cell in the domain
   // which means 8 bytes per cell (1 float for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
   float total_energy = 0.0f;
   RealArray pressures;
   RealArray cell_volumes;
+
+  int nCells = this->getNCells();
 
   BoundingBox bb = getDomainBoundingBox();
   float tot_vol = 1.0;
@@ -989,11 +1274,14 @@ float Snapshot::getTotalInternalEnergy(double gamma) {
  * Returns the integrated kinetic energy over the domain
  * @return the total kinetic energy in the domain
  **/
-float Snapshot::getTotalKineticEnergy() {
+template<typename G>
+float Snapshot<G>::getTotalKineticEnergy() {
   float total_Ek = 0.0;
   RealArray densities;
   VecArray momenta;
   RealArray cell_volumes;
+
+  int nCells = this->getNCells();
 
   int base_id = 0;
   int end_id;
@@ -1027,9 +1315,12 @@ float Snapshot::getTotalKineticEnergy() {
  * Returns the maximum Mach number of the domain
  * @return the maximum Mach number of the flowin the domain
  **/
-float Snapshot::getMaxMach() {
+template<typename G>
+float Snapshot<G>::getMaxMach() {
   float max_Mach = 0.0;
   RealArray Mach;
+
+  int nCells = this->getNCells();
 
   int base_id = 0;
   int end_id;
@@ -1054,9 +1345,12 @@ float Snapshot::getMaxMach() {
  * Returns the average Mach number of the domain
  * @return the average Mach number of the flowin the domain
  **/
-float Snapshot::getAverageMach() {
+template<typename G>
+float Snapshot<G>::getAverageMach() {
   float avg_Mach = 0.0;
   RealArray Mach;
+
+  int nCells = this->getNCells();
 
   int base_id = 0;
   int end_id;
@@ -1088,7 +1382,8 @@ float Snapshot::getAverageMach() {
  * @todo abstract to any variable type
  * @todo abstract to any refinement error calculation
  **/
-RealArray Snapshot::getRefinementCriterion(VecArray pos) {
+template<typename G>
+RealArray Snapshot<G>::getRefinementCriterion(VecArray pos) {
   uint nPos = pos.size(); 
   RealArray out(nPos);
 
@@ -1104,7 +1399,8 @@ RealArray Snapshot::getRefinementCriterion(VecArray pos) {
  * @param iCells the ids of the cells to extract
  * @return a vector of densities for each cell
  **/
-RealArray Snapshot::getDensity(std::vector<uint> iCells) {
+template<typename G>
+RealArray Snapshot<G>::getDensity(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "rho");
 }
 
@@ -1113,7 +1409,8 @@ RealArray Snapshot::getDensity(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of pressures for each cell
  **/
-RealArray Snapshot::getPressure(std::vector<uint> iCells) {
+template<typename G>
+RealArray Snapshot<G>::getPressure(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "P");
 }
 
@@ -1122,7 +1419,8 @@ RealArray Snapshot::getPressure(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of energies for each cell
  **/
-RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
+template<typename G>
+RealArray Snapshot<G>::getTotalEnergy(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "e_tot");
 }
 
@@ -1131,7 +1429,8 @@ RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of Mach number corresponding to the flow each cell
  **/
-RealArray Snapshot::getMach(std::vector<uint> iCells) {
+template<typename G>
+RealArray Snapshot<G>::getMach(std::vector<uint> iCells) {
   return probeCells<float>(iCells, "Mach");
 }
 
@@ -1140,7 +1439,8 @@ RealArray Snapshot::getMach(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of momenta for each cell
  **/
-VecArray Snapshot::getMomentum(std::vector<uint> iCells) {
+template<typename G>
+VecArray Snapshot<G>::getMomentum(std::vector<uint> iCells) {
   RealArray res[3];
   res[0] = probeCells<float>(iCells, "rho_vx");
   res[1] = probeCells<float>(iCells, "rho_vy");
@@ -1161,7 +1461,8 @@ VecArray Snapshot::getMomentum(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of velocities for each cell
  **/
-VecArray Snapshot::getVelocity(std::vector<uint> iCells) {
+template<typename G>
+VecArray Snapshot<G>::getVelocity(std::vector<uint> iCells) {
   VecArray momentum = getMomentum(iCells);
   RealArray density = getDensity(iCells);
   VecArray out(iCells.size());
@@ -1178,7 +1479,8 @@ VecArray Snapshot::getVelocity(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of levels for each cell
  **/
-IntArray Snapshot::getLevel(std::vector<uint> iCells) {
+template<typename G>
+IntArray Snapshot<G>::getLevel(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "level");
 }
 
@@ -1187,7 +1489,8 @@ IntArray Snapshot::getLevel(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of rank for each cell
  **/
-IntArray Snapshot::getRank(std::vector<uint> iCells) {
+template<typename G>
+IntArray Snapshot<G>::getRank(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "rank");
 }
 
@@ -1196,7 +1499,8 @@ IntArray Snapshot::getRank(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of octant ids for each cell
  **/
-IntArray Snapshot::getOctant(std::vector<uint> iCells) {
+template<typename G>
+IntArray Snapshot<G>::getOctant(std::vector<uint> iCells) {
   return probeCells<int>(iCells, "iOct");
 }
 
@@ -1205,43 +1509,34 @@ IntArray Snapshot::getOctant(std::vector<uint> iCells) {
  * @param attribute the name of the field to read
  * @return an array of float correponding to the linearized array of the field
  **/
-RealArray Snapshot::readAllFloat(std::string attribute) {
-  RealArray res;
+template<typename G>
+RealArray Snapshot<G>::readAllFloat(std::string attribute) {
+  using hdf5_data_type = double;
+
+  int nCells = this->getNCells();
+  std::vector<float> res( nCells );
 
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
     return res;
   }
   Attribute &att = attributes[attribute];
-  hid_t data_type = type_corresp[att.type];
-  if (data_type != H5T_NATIVE_FLOAT) {
-    std::cerr << "ERROR : Datatype of " << attribute << " is not float !" << std::endl;
-    return res;
-  }
-
-  herr_t status;
-  hid_t space = H5Dget_space(att.handle);
-
-  hsize_t *select = new hsize_t[nCells];
-  for (int i=0; i < nCells; ++i) {
-    select[i] = i;
-  }
-
-  status = H5Sselect_elements(space, H5S_SELECT_SET, nCells, select);
-  delete [] select;
+  hid_t data_type = hdf5_type_corresp(att.type);
 
   hsize_t d=nCells;
-  float* values = new float[nCells];
-  hid_t memspace = H5Screate_simple(1, &d, NULL); 
+  if( data_type != hdf5_type_id<float>() )
+  {
+    H5Dread(att.handle, hdf5_type_id<float>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, res.data());
+  }
+  else if( data_type != hdf5_type_id<double>() )
+  {
+    std::vector<double> buff(nCells);
+    herr_t status = H5Dread(att.handle, hdf5_type_id<double>(), H5S_ALL, H5S_ALL, H5P_DEFAULT, buff.data());
+    std::copy( buff.begin(), buff.end(), res.begin() );
+  }
+  else
+    std::cerr << "ERROR : Attribute " << attribute << " is not floating point" << std::endl;
 
-  status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, values);
-  res.resize(nCells);
-
-  std::copy(values, values+nCells, res.begin());
-
-  delete [] values;
-  H5Sclose( memspace );
-  H5Sclose( space );
   return res;
 }
 
@@ -1254,7 +1549,8 @@ RealArray Snapshot::readAllFloat(std::string attribute) {
  * @param by number of blocks along y
  * @result the sorted vector
  **/
-RealArray Snapshot::mortonSort2d(RealArray vec,
+template<typename G>
+RealArray Snapshot<G>::mortonSort2d(RealArray vec,
                           uint iLevel, 
                           uint bx, uint by) {
   uint nOctPerDim = (1 << iLevel);
@@ -1262,6 +1558,8 @@ RealArray Snapshot::mortonSort2d(RealArray vec,
   uint chunkSize = bx*by;
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
+
+  int nCells = this->getNCells();
 
   RealArray result;
 
@@ -1310,7 +1608,8 @@ RealArray Snapshot::mortonSort2d(RealArray vec,
  * @param bz number of blocks along z
  * @result the sorted vector
  **/
-RealArray Snapshot::mortonSort3d(RealArray vec,
+template<typename G>
+RealArray Snapshot<G>::mortonSort3d(RealArray vec,
                                           uint iLevel, 
                                           uint bx, uint by, uint bz) {
   uint nOctPerDim = (1 << iLevel);
@@ -1319,6 +1618,8 @@ RealArray Snapshot::mortonSort3d(RealArray vec,
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
   uint Nz = bz * nOctPerDim;
+
+  int nCells = this->getNCells();
 
   RealArray result;
 
@@ -1369,7 +1670,8 @@ RealArray Snapshot::mortonSort3d(RealArray vec,
  * @param by block size along y
  * @return The sorted vector of morton ids
  **/
-UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
+template<typename G>
+UInt64Array Snapshot<G>::getSortingMask2d(uint iLevel, uint bx, uint by) {
   UInt64Array result;
 
   uint nOctPerDim = (1 << iLevel);
@@ -1377,6 +1679,8 @@ UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
   uint chunkSize = bx*by;
   uint Nx = bx * nOctPerDim;
   uint Ny = by * nOctPerDim;
+
+  int nCells = this->getNCells();
 
   if (chunkSize * nOct != nCells) {
     std::cerr << "ERROR : Number of cells is not corresponding to level/block size for Morton sort !" << std::endl;
@@ -1423,7 +1727,8 @@ UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by) {
  * @param coarse_res_y only extracts the first coarse_res_y octants along the Y direction
  * @return The sorted vector of morton ids
  **/
-UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by, uint coarse_res_x, uint coarse_res_y) {
+template<typename G>
+UInt64Array Snapshot<G>::getSortingMask2d(uint iLevel, uint bx, uint by, uint coarse_res_x, uint coarse_res_y) {
   UInt64Array index;
 
   uint nOctPerDim = (1 << iLevel);
@@ -1488,7 +1793,8 @@ UInt64Array Snapshot::getSortingMask2d(uint iLevel, uint bx, uint by, uint coars
  * @param bz block size along z
  * @return The sorted vector of morton ids
  **/
-UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
+template<typename G>
+UInt64Array Snapshot<G>::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
   UInt64Array result;
 
   uint nOctPerDim = (1 << iLevel);
@@ -1549,7 +1855,8 @@ UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz) {
  * @param coarse_res_z only extracts the first coarse_res_y octants along the Y direction
  * @return The sorted vector of morton ids
  **/
-UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, uint coarse_res_x, uint coarse_res_y, uint coarse_res_z) {
+template<typename G>
+UInt64Array Snapshot<G>::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, uint coarse_res_x, uint coarse_res_y, uint coarse_res_z) {
   UInt64Array index;
 
   uint nOctPerDim = (1 << iLevel);
@@ -1618,7 +1925,8 @@ UInt64Array Snapshot::getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, u
  * @param line the object to fill in. Note that Nl, start and end 
  *             should already be filled in.
  **/
-void Snapshot::fillLine(Line &line) {
+template<typename G>
+void Snapshot<G>::fillLine(Line &line) {
   line.pos.clear();
 
   // Building position vector
@@ -1643,7 +1951,8 @@ void Snapshot::fillLine(Line &line) {
  * @param line the object to fill in. Note that Nl, start and end 
  *              should already be filled in
  */
-void Snapshot::fillLineUnique(Line &line) {
+template<typename G>
+void Snapshot<G>::fillLineUnique(Line &line) {
   line.pos.clear();
 
   // Building position vector
@@ -1678,7 +1987,8 @@ void Snapshot::fillLineUnique(Line &line) {
  *                   these quantities can be any of the variables stored in the
  *                   dataset.
  **/
-void Snapshot::fillSlice(Slice &slice) {
+template<typename G>
+void Snapshot<G>::fillSlice(Slice &slice) {
   auto bb = getDomainBoundingBox();
 
   slice.pos.clear();
@@ -1741,5 +2051,8 @@ void Snapshot::fillSlice(Slice &slice) {
   if (has_pressure)
     slice.prs = getPressure(cellIds);
 }
+
+template class Snapshot<Geometry_xmf>;
+template class Snapshot<Geometry_restart>;
 
 }

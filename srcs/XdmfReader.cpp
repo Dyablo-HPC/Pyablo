@@ -32,7 +32,7 @@ inline int extractDimensions(std::string dims) {
  * @param filename the path to the file to read
  * @return A Snapshot object
  **/
-Snapshot XdmfReader::readSnapshot(std::string filename) {
+Snapshot<Geometry_xmf> XdmfReader::readSnapshot(std::string filename) {
   // Extracting path to have it when needed for the hdf5 files
   std::string path = filename.substr(0, filename.rfind("/")+1);
   if (path == "")
@@ -42,7 +42,7 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   pugi::xml_document doc;
   pugi::xml_parse_result result = doc.load_file(filename.c_str());
 
-  Snapshot snap;
+  Snapshot<Geometry_xmf> snap;
 
   std::map<std::string, hid_t> h5_handles;
   
@@ -76,8 +76,8 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
 
   auto [conn_handle, conn_path] = splitH5Filename(connectivity.child_value());
   std::string conn_filename = path + conn_handle;
-  snap.addH5Handle(conn_handle, conn_filename);
-  snap.setConnectivity(conn_handle, conn_path, nCells);
+  hid_t conn_file_handle = snap.addH5Handle(conn_handle, conn_filename);
+  snap.geometry.setConnectivity(conn_file_handle, conn_path, nCells);
 
   /**
    * Geometry info
@@ -92,8 +92,8 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   int nVertices = extractDimensions(coordinates.attribute("Dimensions").value());
   auto [coord_handle, coord_path] = splitH5Filename(coordinates.child_value());
   std::string coord_filename = path + coord_handle;
-  snap.addH5Handle(coord_handle, coord_filename);
-  snap.setCoordinates(coord_handle, coord_path, nVertices);
+  hid_t coord_file_handle = snap.addH5Handle(coord_handle, coord_filename);
+  snap.geometry.setCoordinates(coord_file_handle, coord_path, nVertices);
 
   /**
    * Attributes info
@@ -109,6 +109,38 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
     std::string att_filename = path + att_handle;
     snap.addH5Handle(att_handle, att_filename);
     snap.addAttribute(att_handle, att_path, name, type, center);  
+  }
+  return snap;
+}
+
+/**
+ * Reads a snapshot from an xdmf file
+ * @param filename the path to the file to read
+ * @return A Snapshot object
+ **/
+Snapshot<Geometry_restart> XdmfReader::readRestart(std::string restart_filename) {
+  Snapshot<Geometry_restart> snap;
+
+  std::map<std::string, hid_t> h5_handles;
+
+  snap.setNDim(3);
+  snap.setTime(0.2);
+  snap.setName("test");
+  snap.geometry.setBlockSize(4,4,4);
+  snap.geometry.setDomainBoundingBox(std::make_pair<Vec, Vec>({0,0,0},{1,1,1}));
+
+  /**
+   * Connectivity info
+   **/
+  hid_t file_handle = snap.addH5Handle("restart_file", restart_filename);
+  snap.geometry.setOctCoordinates(file_handle, "/Octree");
+
+  /**
+   * Attributes info
+   **/
+  for (auto field_name: {"rho","e_tot","rho_vx"}) {    
+    std::string xpath = std::string("/fields/") + field_name;
+    snap.addAttribute("restart_file", xpath, field_name, "Double", "?");  
   }
   return snap;
 }
