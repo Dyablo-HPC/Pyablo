@@ -105,24 +105,20 @@ public:
 template< typename Geometry >
 class Snapshot {
  private:
-  /**
-   * Hdf5 related stuff
-   **/
+  std::shared_ptr<HDF5_store> hdf5_store = std::make_shared<HDF5_store>();
+
   std::string name;                     //!< Name of the set
-  std::map<std::string, hid_t> handles; //!< Map of all the opened file handles
-  std::vector<hid_t> data_handles;      //!< List of all the opened dataset handles
 
   std::map<std::string, Attribute> attributes; //!< Map of attributes
 
   int nDim;       //!< Number of dimensions of the dataset   
   float time; //!< Current time of the snapshot
-  static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
  public:
   // TODO make this private
   Geometry geometry;
 
   Snapshot() = default;
-  ~Snapshot();
+  ~Snapshot() = default;
 
   void close();
 

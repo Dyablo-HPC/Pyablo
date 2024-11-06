@@ -3,6 +3,8 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <map>
+#include <stdexcept>
 
 #include "hdf5.h"
 
@@ -81,4 +83,56 @@ Vec& operator/=(Vec &v, float q);
 
 /** Bounding box helpers **/
 bool inBoundingBox(BoundingBox bb, Vec pos, int nDim);
+
+class HDF5_store{
+  std::map<std::string, hid_t> file_handles;
+  std::map<std::string, hid_t> data_handles;
+public:
+  ~HDF5_store()
+  {
+    for(const auto& p : file_handles)
+      H5Fclose( p.second );
+    file_handles.clear();
+    for(const auto& p : data_handles)
+      H5Dclose( p.second );
+    data_handles.clear();
+  }
+
+  hid_t open_file( const std::string& handle, const std::string& filename )
+  {
+    if( file_handles.count(handle) == 0 )
+    {
+      hid_t hid = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+      if (hid < 0) {
+        throw std::runtime_error( std::string("ERROR : Could not open file ") + filename);
+      }
+      file_handles[handle] = hid;
+    }
+    return file_handles.at(handle);
+  }
+
+  hid_t get_file(const std::string& handle)
+  {
+    return file_handles.at(handle);
+  }
+
+  hid_t open_data( const std::string& file_handle, const std::string& xpath )
+  {
+    std::string data_handle = file_handle + ":" + xpath;
+
+    if( data_handles.count(data_handle) == 0 )
+    {
+      hid_t data_id = H5Dopen2(get_file(file_handle), xpath.c_str(), H5P_DEFAULT);
+      if (data_id < 0) {
+        throw std::runtime_error( std::string("ERROR : Could not open data ") + data_handle);
+      }
+      data_handles[data_handle] = data_id;
+    }
+
+    return data_handles.at(data_handle);
+  }
+
+
+
+};
 }

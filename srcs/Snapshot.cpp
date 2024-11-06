@@ -38,30 +38,11 @@ template<> inline hid_t hdf5_type_id<int64_t> (){ return H5T_NATIVE_INT64; }
 } // namespace
 
 /**
- * Destructor
- * Closes all HDF5 handles opened during the lifetime of the Snapshot
- **/
-template<typename G>
-Snapshot<G>::~Snapshot() {
-  //this->close();
-}
-
-/**
- * Closes all the handles in the file
- * This is not done in the destructor to ensure compatibility
- * with pybind11 !
+ * Closes all the hdf5_store->get_file($1) in the file
  **/
 template<typename G>
 void Snapshot<G>::close() {
-  for (auto dh: data_handles)
-    H5Dclose(dh);
-
-  data_handles.clear();
-
-  for (auto [k, h]: handles)
-    H5Fclose(h);
-
-  handles.clear();
+  hdf5_store = std::make_shared<HDF5_store>();
 }
 
 void Geometry_restart::print() {
@@ -135,15 +116,7 @@ void Geometry_restart::setDomainBoundingBox(BoundingBox domain) {
  **/
 template<typename G>
 hid_t Snapshot<G>::addH5Handle(std::string handle, std::string filename) {
-  if (handles.count(handle) == 0) {
-    hid_t hid = H5Fopen(filename.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (hid < 0) {
-      std::cerr << "ERROR : Could not open file " << filename.c_str() << std::endl;
-      std::exit(1);
-    }
-    handles[handle] = hid;
-  }
-  return handles.at(handle);
+  return hdf5_store->open_file( handle, filename );
 }
 
 /**
@@ -233,7 +206,7 @@ void Geometry_restart::setOctCoordinates(hid_t file_handle, std::string xpath) {
  **/
 template<typename G>
 void Snapshot<G>::addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center) {
-  hid_t att_handle = H5Dopen2(handles[handle], xpath.c_str(), H5P_DEFAULT);
+  hid_t att_handle = hdf5_store->open_data( handle, xpath );
   if (att_handle < 0) {
     std::cout << "ERROR : Could not access attribute info at " << handle << "/" << xpath << std::endl;
     std::exit(1);
@@ -241,7 +214,6 @@ void Snapshot<G>::addAttribute(std::string handle, std::string xpath, std::strin
   
   Attribute att {name, type, center, att_handle};
   attributes[name] = att;
-  data_handles.push_back(att_handle);
 }
 
 namespace{
