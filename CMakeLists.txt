@@ -6,12 +6,17 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenMP)
 find_package(HDF5 REQUIRED)
+set( Pyablo_HDF5_TARGETS hdf5::hdf5 )
+if( ${HDF5_IS_PARALLEL} )
+  find_package(MPI REQUIRED)
+  list( APPEND Pyablo_HDF5_TARGETS MPI::MPI_CXX )
+endif()
+message(  ${Pyablo_HDF5_TARGETS} )
 
+find_package(pybind11 REQUIRED)
 
-include_directories(${HDF5_INCLUDE_DIRS})
 include_directories(includes)
 include_directories(external/pugixml/src)
-include_directories(external/pybind11/include)
 include_directories(external/stb)
 
 # Defining optional stuff
@@ -27,17 +32,15 @@ set(SRCS srcs/XdmfReader.cpp
          srcs/Utils.cpp)
 
 add_library(pyablo_lib ${SRCS})
-target_link_libraries(pyablo_lib OpenMP::OpenMP_CXX)
+target_link_libraries(pyablo_lib PUBLIC OpenMP::OpenMP_CXX ${Pyablo_HDF5_TARGETS})
 
 set(LIBS  pyablo_lib 
-          ${HDF5_LIBRARIES}
+          ${Pyablo_HDF5_TARGETS}
           pybind11::module
           pybind11::lto
-          pybind11::windows_extras
-          OpenMP::OpenMP_CXX)
+          pybind11::windows_extras)
 
 ##### Python module
-add_subdirectory(external/pybind11)
 pybind11_add_module(pyablo srcs/pyablo.cpp)
 target_link_libraries(pyablo PUBLIC ${LIBS})
 
@@ -46,4 +49,5 @@ pybind11_strip(pyablo)
 
 set_target_properties(pyablo PROPERTIES CXX_VISIBILITY_PRESET "hidden"
                              CUDA_VISIBILITY_PRESET "hidden")
+
 

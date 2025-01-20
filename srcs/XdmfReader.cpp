@@ -54,7 +54,7 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   auto geometry = grid.child("Geometry");
 
   std::string time_str = time.attribute("Value").value();
-  float time_value = std::strtod(time_str.c_str(), nullptr);
+  real_t time_value = std::strtod(time_str.c_str(), nullptr);
   snap.setTime(time_value);
   std::string grid_name = grid.attribute("Name").value();
   snap.setName(grid_name);

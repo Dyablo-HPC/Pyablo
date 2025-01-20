@@ -25,22 +25,22 @@ Vec& operator-=(Vec &v1, const Vec &v2) {
   return v1; 
 }
 
-Vec operator*(const Vec &v, float q) {
+Vec operator*(const Vec &v, real_t q) {
   return Vec{v[0]*q, v[1]*q, v[2]*q};
 }
 
-Vec& operator*=(Vec &v, float q) {
+Vec& operator*=(Vec &v, real_t q) {
   v[0] *= q;
   v[1] *= q;
   v[2] *= q;
   return v;
 }
 
-Vec operator/(const Vec &v, float q) {
+Vec operator/(const Vec &v, real_t q) {
   return v * (1.0/q);
 }
 
-Vec& operator/=(Vec &v, float q) {
+Vec& operator/=(Vec &v, real_t q) {
   v[0] /= q;
   v[1] /= q;
   v[2] /= q;

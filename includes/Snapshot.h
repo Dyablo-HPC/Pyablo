@@ -6,7 +6,7 @@
 
 namespace dyablo {
 
-constexpr size_t CoordSize = 3; // Coordinates are stored as 3-float even in 2D
+constexpr size_t CoordSize = 3; // Coordinates are stored as 3-real_t even in 2D
 
 /**
  * Class storing info about dyablo snapshots
@@ -48,7 +48,7 @@ class Snapshot {
   int nCells;     //!< Number of cells stored in the file
   int nVertices;  //!< Number of vertices stored in the file
 
-  float time; //!< Current time of the snapshot
+  real_t time; //!< Current time of the snapshot
 
   static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
 
@@ -63,7 +63,7 @@ class Snapshot {
 
   /** Snapshot reading/construction from Hdf5 **/
   void setName(std::string name);
-  void setTime(float time);
+  void setTime(real_t time);
   void setNDim(int nDim);
   void addH5Handle(std::string handle, std::string filename);
   void setConnectivity(std::string handle, std::string xpath, int nCells);
@@ -75,8 +75,8 @@ class Snapshot {
   BoundingBox getCellBoundingBox(uint iCell);
   Vec getCellCenter(uint iCell);
   Vec getCellSize(uint iCell);
-  float getCellVolume(uint iCell);
-  float getTime();
+  real_t getCellVolume(uint iCell);
+  real_t getTime();
 
   /** Vector access 
    * @note: Please use these for large query as most of them are made in parallel
@@ -86,6 +86,7 @@ class Snapshot {
   VecArray   getCellSize(UIntArray iCells);
   RealArray  getCellVolume(UIntArray iCells);
   VecArray   getUniqueCells(VecArray pos);
+  VecArray   getGridVertex(std::vector<uint> sortingMask, std::array<uint, 2> shape);
 
   /** Domain info **/
   int getNCells();
@@ -101,10 +102,10 @@ class Snapshot {
   std::vector<T> probeCells(UIntArray iCells, std::string attribute);
 
   /** High-level probing methods **/
-  float probeDensity(Vec pos);
-  float probePressure(Vec pos);
-  float probeTotalEnergy(Vec pos);
-  float probeMach(Vec pos);
+  real_t probeDensity(Vec pos);
+  real_t probePressure(Vec pos);
+  real_t probeTotalEnergy(Vec pos);
+  real_t probeMach(Vec pos);
   Vec   probeMomentum(Vec pos);
   Vec   probeVelocity(Vec pos);
   int   probeLevel(Vec pos);
@@ -112,14 +113,14 @@ class Snapshot {
   int   probeOctant(Vec pos);
 
   // Integrated quantities
-  float getTotalMass();
-  float getTotalEnergy();
-  float getTotalInternalEnergy(double gamma);
-  float getTotalKineticEnergy();
-  float getMaxMach();
-  float getAverageMach();
+  real_t getTotalMass();
+  real_t getTotalEnergy();
+  real_t getTotalInternalEnergy(double gamma);
+  real_t getTotalKineticEnergy();
+  real_t getMaxMach();
+  real_t getAverageMach();
 
-  float     getRefinementCriterion(Vec pos);
+  real_t     getRefinementCriterion(Vec pos);
   RealArray getRefinementCriterion(VecArray pos);  
   
   // Vector functions

@@ -4,7 +4,7 @@
 namespace dyablo {
 
 namespace{
-  float det(const Vec& u, const Vec& v, const Vec& w)
+  real_t det(const Vec& u, const Vec& v, const Vec& w)
   {
     return u[0]*v[1]*w[2] + u[1]*v[2]*w[0] + u[2]*v[0]*w[1]
           -u[2]*v[1]*w[0] - u[1]*v[0]*w[2] - u[0]*v[2]*w[1];
@@ -28,7 +28,7 @@ namespace{
     };
   }
 
-  Vec operator*(const float a, const Vec &b)
+  Vec operator*(const real_t a, const Vec &b)
   {
     return {
       a*b[0],
@@ -36,7 +36,6 @@ namespace{
       a*b[2]
     };
   }
-  #define CELL_GEOMETRY
 };
 
 int Snapshot::vec_size = 1000000;
@@ -46,7 +45,7 @@ int Snapshot::vec_size = 1000000;
  **/
 std::map<std::string, hid_t> Snapshot::type_corresp = {
   {"Int", H5T_NATIVE_INT},
-  {"Float", H5T_NATIVE_FLOAT}
+  {"Float", H5T_NATIVE_REAL_T}
 };
 
 /**
@@ -94,7 +93,7 @@ void Snapshot::setName(std::string name) {
  * Sets the associated time of the snapshot
  * @param time the time of the current snapshot
  **/
-void Snapshot::setTime(float time) {
+void Snapshot::setTime(real_t time) {
   this->time = time;
 }
 
@@ -168,7 +167,7 @@ void Snapshot::setCoordinates(std::string handle, std::string xpath, int nVertic
 
   // We read all the coords in memory
   vertex_buffer.resize(nVertices*CoordSize);
-  herr_t status = H5Dread(coordinates, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, vertex_buffer.data());
+  herr_t status = H5Dread(coordinates, H5T_NATIVE_REAL_T, H5S_ALL, H5S_ALL, H5P_DEFAULT, vertex_buffer.data());
   if (status < 0) {
     std::cerr << "ERROR while reading coordinates !" << std::endl;
     std::exit(1);
@@ -261,7 +260,7 @@ BoundingBox Snapshot::getCellBoundingBox(uint iCell) {
 
   for (uint i=1; i < nElems; ++i) {
     int ci = index_buffer[iCell*nElems+i];
-    float* coords = &vertex_buffer[ci*CoordSize];
+    real_t* coords = &vertex_buffer[ci*CoordSize];
     for (int i=0; i < nDim; ++i) { 
       min[i] = std::min(min[i], coords[i]);
       max[i] = std::max(max[i], coords[i]);
@@ -276,12 +275,12 @@ BoundingBox Snapshot::getCellBoundingBox(uint iCell) {
  * @param iCell the index of the cell to probe
  * @return a vector giving the center position of the cell iCell
  **/
-#ifndef CELL_GEOMETRY
+#ifndef USE_CELL_CENTROID
 Vec Snapshot::getCellCenter(uint iCell) {
   Vec out{0.0};
   for (int i=0; i < nElems; ++i) {
     int ci = index_buffer[iCell*nElems+i];
-    float *coords = &vertex_buffer[ci*CoordSize];
+    real_t *coords = &vertex_buffer[ci*CoordSize];
     out[0] += coords[0];
     out[1] += coords[1];
     if (nDim == 3)
@@ -299,7 +298,7 @@ Vec Snapshot::getCellCenter(uint iCell) {
   Vec v[nElems]{};
   for (int i=0; i < nElems; ++i) {
     int ci = index_buffer[iCell*nElems+i];
-    float *coords = &vertex_buffer[ci*CoordSize];
+    real_t *coords = &vertex_buffer[ci*CoordSize];
     v[i][0] = coords[0];
     v[i][1] = coords[1];
     if (nDim == 3)
@@ -309,8 +308,8 @@ Vec Snapshot::getCellCenter(uint iCell) {
   if(nDim == 2)
   {
     Vec &bl=v[0], &br=v[1], &tr=v[2], &tl=v[3]; 
-    float cx = ((bl[0] + br[0])*(bl[0]*br[1] - br[0]*bl[1]) - (bl[0] + tl[0])*(bl[0]*tl[1] - tl[0]*bl[1]) + (br[0] + tr[0])*(br[0]*tr[1] - tr[0]*br[1]) + (tr[0] + tl[0])*(tr[0]*tl[1] - tl[0]*tr[1])) / (3*(bl[0]*br[1] - bl[0]*tl[1] - br[0]*bl[1] + br[0]*tr[1] - tr[0]*br[1] + tr[0]*tl[1] + tl[0]*bl[1] - tl[0]*tr[1]));
-    float cy = ((bl[1] + br[1])*(bl[0]*br[1] - br[0]*bl[1]) - (bl[1] + tl[1])*(bl[0]*tl[1] - tl[0]*bl[1]) + (br[1] + tr[1])*(br[0]*tr[1] - tr[0]*br[1]) + (tr[1] + tl[1])*(tr[0]*tl[1] - tl[0]*tr[1])) / (3*(bl[0]*br[1] - bl[0]*tl[1] - br[0]*bl[1] + br[0]*tr[1] - tr[0]*br[1] + tr[0]*tl[1] + tl[0]*bl[1] - tl[0]*tr[1]));
+    real_t cx = ((bl[0] + br[0])*(bl[0]*br[1] - br[0]*bl[1]) - (bl[0] + tl[0])*(bl[0]*tl[1] - tl[0]*bl[1]) + (br[0] + tr[0])*(br[0]*tr[1] - tr[0]*br[1]) + (tr[0] + tl[0])*(tr[0]*tl[1] - tl[0]*tr[1])) / (3*(bl[0]*br[1] - bl[0]*tl[1] - br[0]*bl[1] + br[0]*tr[1] - tr[0]*br[1] + tr[0]*tl[1] + tl[0]*bl[1] - tl[0]*tr[1]));
+    real_t cy = ((bl[1] + br[1])*(bl[0]*br[1] - br[0]*bl[1]) - (bl[1] + tl[1])*(bl[0]*tl[1] - tl[0]*bl[1]) + (br[1] + tr[1])*(br[0]*tr[1] - tr[0]*br[1]) + (tr[1] + tl[1])*(tr[0]*tl[1] - tl[0]*tr[1])) / (3*(bl[0]*br[1] - bl[0]*tl[1] - br[0]*bl[1] + br[0]*tr[1] - tr[0]*br[1] + tr[0]*tl[1] + tl[0]*bl[1] - tl[0]*tr[1]));
     return {cx, cy, 0};
   }
   else
@@ -322,10 +321,10 @@ Vec Snapshot::getCellCenter(uint iCell) {
     Vec fzL = 0.25 * (v[0] + v[1] + v[2] + v[3]);
     Vec fzR = 0.25 * (v[4] + v[5] + v[6] + v[7]);
       
-    const float v1 = det(fxR-fxL, fyR-fyL, fzR-fzL);
-    const float d1 = det(v[5]-v[0], v[7]-v[0], v[2]-v[0]);
-    const float d2 = det(v[6]-v[3], v[6]-v[1], v[6]-v[4]);
-    const float volume = (16*v1 + d1 + d2) / 12.;
+    const real_t v1 = det(fxR-fxL, fyR-fyL, fzR-fzL);
+    const real_t d1 = det(v[5]-v[0], v[7]-v[0], v[2]-v[0]);
+    const real_t d2 = det(v[6]-v[3], v[6]-v[1], v[6]-v[4]);
+    const real_t volume = (16*v1 + d1 + d2) / 12.;
 
     auto contribution_side = [&](const Vec &p0, const Vec &p1, const Vec &p2, const Vec &p3, const Vec &m) -> Vec 
     {
@@ -361,32 +360,6 @@ Vec Snapshot::getCellCenter(uint iCell) {
  * @param iCells the indices of the cells to probe
  * @return a vector of positions corresponding to the center of the cells
  **/
-#ifndef CELL_GEOMETRY
-VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
-  uint nPos = iCells.size();
-  VecArray out(nPos);
-  
-  #pragma omp parallel for schedule(dynamic)
-  for (int i=0; i < nPos; ++i) {
-    uint iCell = iCells[i];
-    for (int j=0; j < nElems; ++j) {
-      int ci = index_buffer[iCell*nElems+j];
-      float *coords = &vertex_buffer[ci*CoordSize];
-      out[i][0] += coords[0];
-      out[i][1] += coords[1];
-      if (nDim == 3)
-        out[i][2] += coords[2];
-    }
-
-    out[i][0] /= nElems;
-    out[i][1] /= nElems;
-    if (nDim == 3)
-      out[i][2] /= nElems;
-  }
-
-  return out;
-}
-#else
 VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
   uint nPos = iCells.size();
   VecArray out(nPos);
@@ -398,7 +371,67 @@ VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
 
   return out;
 }
-#endif
+
+/**
+ * Returns the vertex of the grid in order for pcolor
+ * @param sortingMask output of the function getSortingMask2d
+ * @param shape, grid size : (Ny, Nx)
+ * @return a vector of positions corresponding to the vertex of the grid
+ **/
+VecArray Snapshot::getGridVertex(std::vector<uint> sortingMask, std::array<uint, 2> shape) {
+  const auto [Ny, Nx] = shape;
+  VecArray out((Ny+1) * (Nx+1));
+
+  // take the top left vertex of each cell
+  #pragma omp parallel for schedule(dynamic) collapse(2)
+  for (int i=0; i < Ny; ++i) {
+    for (int j=0; j < Nx; ++j) {
+      uint iCell = sortingMask[i*Nx + j];
+      int ci = index_buffer[iCell*nElems];
+      real_t *coords = &vertex_buffer[ci*CoordSize];
+
+      out[i*(Nx+1) + j][0] = coords[0];
+      out[i*(Nx+1) + j][1] = coords[1];
+      out[i*(Nx+1) + j][2] = 0;
+    }
+  }
+  
+  // right boundaries
+  #pragma omp parallel for schedule(dynamic)
+  for (int i=0; i < Ny; ++i) {
+    uint iCell = sortingMask[i*Nx + Nx-1];
+    int ci = index_buffer[iCell*nElems+1];
+    real_t *coords = &vertex_buffer[ci*CoordSize];
+
+    out[i*(Nx+1) + Nx][0] = coords[0];
+    out[i*(Nx+1) + Nx][1] = coords[1];
+    out[i*(Nx+1) + Nx][2] = 0;
+  }
+
+  // bottom boundaries
+  #pragma omp parallel for schedule(dynamic)
+  for (int j=0; j < Nx; ++j) {
+    uint iCell = sortingMask[(Ny-1)*Nx + j];
+    int ci = index_buffer[iCell*nElems+3];
+    real_t *coords = &vertex_buffer[ci*CoordSize];
+
+    out[Ny*(Nx+1) + j][0] = coords[0];
+    out[Ny*(Nx+1) + j][1] = coords[1];
+    out[Ny*(Nx+1) + j][2] = 0;
+  }
+
+  // bottom right vertex
+  uint iCell = sortingMask[Ny*Nx -1];
+  int ci = index_buffer[iCell*nElems+2];
+  real_t *coords = &vertex_buffer[ci*CoordSize];
+
+  out[(Ny+1)*(Nx+1) - 1][0] = coords[0];
+  out[(Ny+1)*(Nx+1) - 1][1] = coords[1];
+  out[(Ny+1)*(Nx+1) - 1][2] = 0;
+
+  return out;
+}
+
 
 /**
  * Returns the size of a cell
@@ -434,22 +467,22 @@ VecArray Snapshot::getCellSize(std::vector<uint> iCells) {
 /**
  * Returns the volume/surface of a cell
  * @param iCell the index of the cell to probe
- * @return a float indicating the surface in 2D or the volume in 3D of the cell
+ * @return a real_t indicating the surface in 2D or the volume in 3D of the cell
  **/
-#ifndef CELL_GEOMETRY
-float Snapshot::getCellVolume(uint iCell) {
+#ifndef USE_CELL_CENTROID
+real_t Snapshot::getCellVolume(uint iCell) {
   BoundingBox bb = getCellBoundingBox(iCell);
-  float out = bb.second[0] - bb.first[0];
+  real_t out = bb.second[0] - bb.first[0];
   for (int i=1; i < nDim; ++i)
     out *= bb.second[i] - bb.first[i];
   return out;
 }
 #else
-float Snapshot::getCellVolume(uint iCell) {
+real_t Snapshot::getCellVolume(uint iCell) {
   Vec v[nElems]{};
   for (int i=0; i < nElems; ++i) {
     int ci = index_buffer[iCell*nElems+i];
-    float *coords = &vertex_buffer[ci*CoordSize];
+    real_t *coords = &vertex_buffer[ci*CoordSize];
     v[i][0] = coords[0];
     v[i][1] = coords[1];
     if (nDim == 3)
@@ -470,9 +503,9 @@ float Snapshot::getCellVolume(uint iCell) {
     Vec fz = (v[0] + v[1] + v[2] + v[3])
            - (v[4] + v[5] + v[6] + v[7]);
       
-    const float v1 = -1/64. * det(fx, fy, fz);
-    const float d1 = det(v[5]-v[0], v[7]-v[0], v[2]-v[0]);
-    const float d2 = det(v[6]-v[3], v[6]-v[1], v[6]-v[4]);
+    const real_t v1 = -1/64. * det(fx, fy, fz);
+    const real_t d1 = det(v[5]-v[0], v[7]-v[0], v[2]-v[0]);
+    const real_t d2 = det(v[6]-v[3], v[6]-v[1], v[6]-v[4]);
 
     return (16*v1 + d1 + d2) / 12.;
   }
@@ -482,7 +515,7 @@ float Snapshot::getCellVolume(uint iCell) {
 /**
  * Returns the volume/surface of a cell
  * @param iCells a vector of cells to probe
- * @return a vector of floats indicating the volume/surface of each cell probed
+ * @return a vector of real_ts indicating the volume/surface of each cell probed
  **/
 RealArray Snapshot::getCellVolume(std::vector<uint> iCells) {
   uint nSizes = iCells.size();
@@ -501,7 +534,7 @@ RealArray Snapshot::getCellVolume(std::vector<uint> iCells) {
  * Gets the associated time of the snapshot
  * @return the time of the current snapshot
  **/
-float Snapshot::getTime() {
+real_t Snapshot::getTime() {
   return time;
 }
 
@@ -577,10 +610,12 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
   if (data_type == H5T_NATIVE_INT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
   }
-  else if (data_type == H5T_NATIVE_FLOAT) {
+  else if (data_type == H5T_NATIVE_REAL_T) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
   }
 
+  H5Sclose( memspace );
+  H5Sclose( space );
   return value;
 }
 
@@ -628,7 +663,7 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
   if (data_type == H5T_NATIVE_INT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
-  else if (data_type == H5T_NATIVE_FLOAT) {
+  else if (data_type == H5T_NATIVE_REAL_T) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
 
@@ -683,7 +718,7 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
   if (data_type == H5T_NATIVE_INT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
-  else if (data_type == H5T_NATIVE_FLOAT) {
+  else if (data_type == H5T_NATIVE_REAL_T) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
 
@@ -699,8 +734,8 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
  * @param pos the position to probe
  * @return the density at position pos
  **/
-float Snapshot::probeDensity(Vec pos) {
-  return probeLocation<float>(pos, "rho");
+real_t Snapshot::probeDensity(Vec pos) {
+  return probeLocation<real_t>(pos, "rho");
 }
 
 /** 
@@ -708,8 +743,8 @@ float Snapshot::probeDensity(Vec pos) {
  * @param pos the position to probe
  * @return the total energy at position pos
  **/
-float Snapshot::probeTotalEnergy(Vec pos) {
-  return probeLocation<float>(pos, "e_tot");
+real_t Snapshot::probeTotalEnergy(Vec pos) {
+  return probeLocation<real_t>(pos, "e_tot");
 }
 
 /** 
@@ -717,8 +752,8 @@ float Snapshot::probeTotalEnergy(Vec pos) {
  * @param pos the position to probe
  * @return the total energy at position pos
  **/
-float Snapshot::probePressure(Vec pos) {
-  return probeLocation<float>(pos, "P");
+real_t Snapshot::probePressure(Vec pos) {
+  return probeLocation<real_t>(pos, "P");
 }
 
 /** 
@@ -726,8 +761,8 @@ float Snapshot::probePressure(Vec pos) {
  * @param pos the position to probe
  * @return the Mach number of the flow at position pos
  **/
-float Snapshot::probeMach(Vec pos) {
-  return probeLocation<float>(pos, "Mach");
+real_t Snapshot::probeMach(Vec pos) {
+  return probeLocation<real_t>(pos, "Mach");
 }
 
 /** 
@@ -737,10 +772,10 @@ float Snapshot::probeMach(Vec pos) {
  **/
 Vec Snapshot::probeMomentum(Vec pos) {
   Vec res;
-  res[0] = probeLocation<float>(pos, "rho_vx");
-  res[1] = probeLocation<float>(pos, "rho_vy");
+  res[0] = probeLocation<real_t>(pos, "rho_vx");
+  res[1] = probeLocation<real_t>(pos, "rho_vy");
   if (nDim == 3)
-    res[2] = probeLocation<float>(pos, "rho_vz");
+    res[2] = probeLocation<real_t>(pos, "rho_vz");
 
   return res;
 }
@@ -752,7 +787,7 @@ Vec Snapshot::probeMomentum(Vec pos) {
  **/
 Vec Snapshot::probeVelocity(Vec pos) {
   Vec res = probeMomentum(pos);
-  float rho = probeLocation<float>(pos, "rho");
+  real_t rho = probeLocation<real_t>(pos, "rho");
   for (int i=0; i < nDim; ++i)
     res[i] /= rho;
   return res;
@@ -791,7 +826,7 @@ int Snapshot::probeOctant(Vec pos) {
  * @return the density at positions pos
  **/
 RealArray Snapshot::probeDensity(VecArray pos) {
-  return probeLocation<float>(pos, "rho");
+  return probeLocation<real_t>(pos, "rho");
 }
 
 /** 
@@ -800,7 +835,7 @@ RealArray Snapshot::probeDensity(VecArray pos) {
  * @return the pressure at positions pos
  **/
 RealArray Snapshot::probePressure(VecArray pos) {
-  return probeLocation<float>(pos, "P");
+  return probeLocation<real_t>(pos, "P");
 }
 
 /** 
@@ -809,7 +844,7 @@ RealArray Snapshot::probePressure(VecArray pos) {
  * @return the total energy at positions pos
  **/
 RealArray Snapshot::probeTotalEnergy(VecArray pos) {
-  return probeLocation<float>(pos, "e_tot");
+  return probeLocation<real_t>(pos, "e_tot");
 }
 
 /**
@@ -818,7 +853,7 @@ RealArray Snapshot::probeTotalEnergy(VecArray pos) {
  * @return the Mach number of the flow at the position
  **/
 RealArray Snapshot::probeMach(VecArray pos) {
-  return probeLocation<float>(pos, "Mach");
+  return probeLocation<real_t>(pos, "Mach");
 }
 
 /** 
@@ -828,10 +863,10 @@ RealArray Snapshot::probeMach(VecArray pos) {
  **/
 VecArray Snapshot::probeMomentum(VecArray pos) {
   RealArray res[3];
-  res[0] = probeLocation<float>(pos, "rho_vx");
-  res[1] = probeLocation<float>(pos, "rho_vy");
+  res[0] = probeLocation<real_t>(pos, "rho_vx");
+  res[1] = probeLocation<real_t>(pos, "rho_vy");
   if (nDim == 3)
-    res[2] = probeLocation<float>(pos, "rho_vz");
+    res[2] = probeLocation<real_t>(pos, "rho_vz");
 
   // Ugly af ...
   VecArray out(pos.size());
@@ -849,7 +884,7 @@ VecArray Snapshot::probeMomentum(VecArray pos) {
  **/
 VecArray Snapshot::probeVelocity(VecArray pos) {
   VecArray  res = probeMomentum(pos);
-  RealArray rho = probeLocation<float>(pos, "rho");
+  RealArray rho = probeLocation<real_t>(pos, "rho");
   for (int i=0; i < pos.size(); ++i) {
     for (int j=0; j < nDim; ++j)
       res[i][j] /= rho[i];
@@ -928,22 +963,22 @@ IntArray Snapshot::getBlock(uint iOct) {
 /**
  * Returns the value of the refinement criterion at position pos
  * @param pos the position where to probe the refinement criterion
- * @return a floating point value corresponding to the error for refinement at pos.
+ * @return a real_ting point value corresponding to the error for refinement at pos.
  *         
  * @note Result will be 0.0f if pos is at the edge of the domain
  * 
  * @todo abstract to any variable type
  * @todo abstract to any refinement error calculation
  **/
-float Snapshot::getRefinementCriterion(Vec pos) {
+real_t Snapshot::getRefinementCriterion(Vec pos) {
   // Retrieving cells, sizes and domain bounding box
   BoundingBox bb = getDomainBoundingBox();
   uint iCell = getCellFromPosition(pos);
   Vec  h     = getCellSize(iCell);
 
   // Probing current location
-  float rho = probeDensity(pos);
-  float en  = probeTotalEnergy(pos);
+  real_t rho = probeDensity(pos);
+  real_t en  = probeTotalEnergy(pos);
 
   // Spatial offsets
   Vec off_x {h[0]*0.75f, 0.0f, 0.0f};
@@ -971,36 +1006,36 @@ float Snapshot::getRefinementCriterion(Vec pos) {
   }
   
   // Probing density values on adjacent cells in 2D
-  float rho_xp = probeDensity(pxp);
-  float rho_xm = probeDensity(pxm);
-  float rho_yp = probeDensity(pym);
-  float rho_ym = probeDensity(pyp);
+  real_t rho_xp = probeDensity(pxp);
+  real_t rho_xm = probeDensity(pxm);
+  real_t rho_yp = probeDensity(pym);
+  real_t rho_ym = probeDensity(pyp);
 
   // And energy
-  float en_xp = probeTotalEnergy(pxp);
-  float en_xm = probeTotalEnergy(pxm);
-  float en_yp = probeTotalEnergy(pyp);
-  float en_ym = probeTotalEnergy(pym);
+  real_t en_xp = probeTotalEnergy(pxp);
+  real_t en_xm = probeTotalEnergy(pxm);
+  real_t en_yp = probeTotalEnergy(pyp);
+  real_t en_ym = probeTotalEnergy(pym);
   
   // Calculating error
-  auto err_calc = [&] (float ui, float uim, float uip, float eps=0.01) {
-    float grad_L = fabs(ui - uim);
-    float grad_R = fabs(uip - ui);
-    float cd = fabs(2.0*ui) + fabs(uip) + fabs(uim);
-    float d2 = fabs(uip + uim - 2.0f*ui);
-    float Ei = d2 / (grad_L + grad_R + eps * cd);
+  auto err_calc = [&] (real_t ui, real_t uim, real_t uip, real_t eps=0.01) {
+    real_t grad_L = fabs(ui - uim);
+    real_t grad_R = fabs(uip - ui);
+    real_t cd = fabs(2.0*ui) + fabs(uip) + fabs(uim);
+    real_t d2 = fabs(uip + uim - 2.0f*ui);
+    real_t Ei = d2 / (grad_L + grad_R + eps * cd);
     return Ei;
   };
 
-  float err = std::max({err_calc(rho, rho_xm, rho_xp),
+  real_t err = std::max({err_calc(rho, rho_xm, rho_xp),
                         err_calc(rho, rho_ym, rho_yp),
                         err_calc(en, en_xm, en_xp),
                         err_calc(en, en_ym, en_yp)});
   if (nDim == 3) {
-    float rho_zp = probeDensity(pzp);
-    float rho_zm = probeDensity(pzm);
-    float en_zp = probeTotalEnergy(pzp);
-    float en_zm = probeTotalEnergy(pzm);
+    real_t rho_zp = probeDensity(pzp);
+    real_t rho_zm = probeDensity(pzm);
+    real_t en_zp = probeTotalEnergy(pzp);
+    real_t en_zm = probeTotalEnergy(pzm);
 
     err = std::max({err,
                     err_calc(rho, rho_zm, rho_zp),
@@ -1014,11 +1049,11 @@ float Snapshot::getRefinementCriterion(Vec pos) {
  * Returns the integrated total mass over the domain
  * @return the total mass in the domain
  **/
-float Snapshot::getTotalMass() {
+real_t Snapshot::getTotalMass() {
   // We require the density and the volume of each cell in the domain
-  // which means 8 bytes per cell (1 float for volume, 1 for density)
+  // which means 8 bytes per cell (1 real_t for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
-  float total_mass = 0.0f;
+  real_t total_mass = 0.0f;
   RealArray densities;
   RealArray cell_volumes;
 
@@ -1032,7 +1067,7 @@ float Snapshot::getTotalMass() {
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
-    densities = probeCells<float>(cid, "rho");
+    densities = probeCells<real_t>(cid, "rho");
     cell_volumes = getCellVolume(cid);
 
     uint nV = end_id - base_id;
@@ -1049,11 +1084,11 @@ float Snapshot::getTotalMass() {
  * Returns the integrated total energy over the domain
  * @return the total mass in the domain
  **/
-float Snapshot::getTotalEnergy() {
+real_t Snapshot::getTotalEnergy() {
   // We require the density and the volume of each cell in the domain
-  // which means 8 bytes per cell (1 float for volume, 1 for density)
+  // which means 8 bytes per cell (1 real_t for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
-  float total_energy = 0.0f;
+  real_t total_energy = 0.0f;
   RealArray energies;
   RealArray density;
   RealArray cell_volumes;
@@ -1085,16 +1120,16 @@ float Snapshot::getTotalEnergy() {
  * Returns the integrated total internal energy over the domain
  * @return the total internal energy density in the domain
  **/
-float Snapshot::getTotalInternalEnergy(double gamma) {
+real_t Snapshot::getTotalInternalEnergy(double gamma) {
   // We require the density and the volume of each cell in the domain
-  // which means 8 bytes per cell (1 float for volume, 1 for density)
+  // which means 8 bytes per cell (1 real_t for volume, 1 for density)
   // We read everything by vectors to avoid filling the memory 
-  float total_energy = 0.0f;
+  real_t total_energy = 0.0f;
   RealArray pressures;
   RealArray cell_volumes;
 
   BoundingBox bb = getDomainBoundingBox();
-  float tot_vol = 1.0;
+  real_t tot_vol = 1.0;
   for (int i=0; i < nDim; ++i)
     tot_vol *= bb.second[i] - bb.first[i];
 
@@ -1125,8 +1160,8 @@ float Snapshot::getTotalInternalEnergy(double gamma) {
  * Returns the integrated kinetic energy over the domain
  * @return the total kinetic energy in the domain
  **/
-float Snapshot::getTotalKineticEnergy() {
-  float total_Ek = 0.0;
+real_t Snapshot::getTotalKineticEnergy() {
+  real_t total_Ek = 0.0;
   RealArray densities;
   VecArray momenta;
   RealArray cell_volumes;
@@ -1163,8 +1198,8 @@ float Snapshot::getTotalKineticEnergy() {
  * Returns the maximum Mach number of the domain
  * @return the maximum Mach number of the flowin the domain
  **/
-float Snapshot::getMaxMach() {
-  float max_Mach = 0.0;
+real_t Snapshot::getMaxMach() {
+  real_t max_Mach = 0.0;
   RealArray Mach;
 
   int base_id = 0;
@@ -1177,7 +1212,7 @@ float Snapshot::getMaxMach() {
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
-    Mach = probeCells<float>(cid, "Mach");
+    Mach = probeCells<real_t>(cid, "Mach");
     max_Mach = std::max(max_Mach, *std::max_element(Mach.begin(), Mach.end()));
     
     base_id += vec_size;
@@ -1190,8 +1225,8 @@ float Snapshot::getMaxMach() {
  * Returns the average Mach number of the domain
  * @return the average Mach number of the flowin the domain
  **/
-float Snapshot::getAverageMach() {
-  float avg_Mach = 0.0;
+real_t Snapshot::getAverageMach() {
+  real_t avg_Mach = 0.0;
   RealArray Mach;
 
   int base_id = 0;
@@ -1204,7 +1239,7 @@ float Snapshot::getAverageMach() {
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
-    Mach = probeCells<float>(cid, "Mach");
+    Mach = probeCells<real_t>(cid, "Mach");
     avg_Mach += std::accumulate(Mach.begin(), Mach.end(), 0.0);
     
     base_id += vec_size;
@@ -1216,7 +1251,7 @@ float Snapshot::getAverageMach() {
 /**
  * Returns the value of the refinement criterion at a set of positions
  * @param pos the position vector where to probe the refinement criterion
- * @return a vector of floating point values corresponding to the error for
+ * @return a vector of real_ting point values corresponding to the error for
  *         refinement at each position. 
  * 
  * @note Result will be 0.0f for each position at the edge of the domain
@@ -1241,7 +1276,7 @@ RealArray Snapshot::getRefinementCriterion(VecArray pos) {
  * @return a vector of densities for each cell
  **/
 RealArray Snapshot::getDensity(std::vector<uint> iCells) {
-  return probeCells<float>(iCells, "rho");
+  return probeCells<real_t>(iCells, "rho");
 }
 
 /**
@@ -1250,7 +1285,7 @@ RealArray Snapshot::getDensity(std::vector<uint> iCells) {
  * @return a vector of pressures for each cell
  **/
 RealArray Snapshot::getPressure(std::vector<uint> iCells) {
-  return probeCells<float>(iCells, "P");
+  return probeCells<real_t>(iCells, "P");
 }
 
 /**
@@ -1259,7 +1294,7 @@ RealArray Snapshot::getPressure(std::vector<uint> iCells) {
  * @return a vector of energies for each cell
  **/
 RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
-  return probeCells<float>(iCells, "e_tot");
+  return probeCells<real_t>(iCells, "e_tot");
 }
 
 /**
@@ -1268,7 +1303,7 @@ RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
  * @return a vector of Mach number corresponding to the flow each cell
  **/
 RealArray Snapshot::getMach(std::vector<uint> iCells) {
-  return probeCells<float>(iCells, "Mach");
+  return probeCells<real_t>(iCells, "Mach");
 }
 
 /**
@@ -1278,10 +1313,10 @@ RealArray Snapshot::getMach(std::vector<uint> iCells) {
  **/
 VecArray Snapshot::getMomentum(std::vector<uint> iCells) {
   RealArray res[3];
-  res[0] = probeCells<float>(iCells, "rho_vx");
-  res[1] = probeCells<float>(iCells, "rho_vy");
+  res[0] = probeCells<real_t>(iCells, "rho_vx");
+  res[1] = probeCells<real_t>(iCells, "rho_vy");
   if (nDim == 3)
-    res[2] = probeCells<float>(iCells, "rho_vz");
+    res[2] = probeCells<real_t>(iCells, "rho_vz");
 
   // Ewwwww ...
   VecArray out(iCells.size());
@@ -1339,7 +1374,7 @@ IntArray Snapshot::getOctant(std::vector<uint> iCells) {
 /**
  * Reads all the data corresponding to a field
  * @param attribute the name of the field to read
- * @return an array of float correponding to the linearized array of the field
+ * @return an array of real_t correponding to the linearized array of the field
  **/
 RealArray Snapshot::readAllFloat(std::string attribute) {
   RealArray res;
@@ -1350,7 +1385,7 @@ RealArray Snapshot::readAllFloat(std::string attribute) {
   }
   Attribute &att = attributes[attribute];
   hid_t data_type = type_corresp[att.type];
-  if (data_type != H5T_NATIVE_FLOAT) {
+  if (data_type != H5T_NATIVE_REAL_T) {
     std::cerr << "ERROR : Datatype of " << attribute << " is not float !" << std::endl;
     return res;
   }
@@ -1367,7 +1402,7 @@ RealArray Snapshot::readAllFloat(std::string attribute) {
   delete [] select;
 
   hsize_t d=nCells;
-  float* values = new float[nCells];
+  real_t* values = new real_t[nCells];
   hid_t memspace = H5Screate_simple(1, &d, NULL); 
 
   status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, values);
@@ -1376,6 +1411,8 @@ RealArray Snapshot::readAllFloat(std::string attribute) {
   std::copy(values, values+nCells, res.begin());
 
   delete [] values;
+  H5Sclose( memspace );
+  H5Sclose( space );
   return res;
 }
 

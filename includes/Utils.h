@@ -8,10 +8,20 @@
 
 namespace dyablo {
 
-using Vec = std::array<float, 3>;
+#if 1
+  #define H5T_NATIVE_REAL_T H5T_NATIVE_FLOAT
+  using real_t = float;
+#else
+  #define H5T_NATIVE_REAL_T H5T_NATIVE_DOUBLE
+  using real_t = double;
+#endif
+
+#define USE_CELL_CENTROID
+
+using Vec = std::array<real_t, 3>;
 using BoundingBox = std::pair<Vec, Vec>;
 
-using RealArray   = std::vector<float>;
+using RealArray   = std::vector<real_t>;
 using VecArray    = std::vector<Vec>;
 using IntArray    = std::vector<int>;
 using UIntArray   = std::vector<uint>;
@@ -34,11 +44,11 @@ enum Direction : uint8_t {
 };
 
 struct VarState {
-  float rho;
-  float vx;
-  float vy;
-  float vz;
-  float prs; 
+  real_t rho;
+  real_t vx;
+  real_t vy;
+  real_t vz;
+  real_t prs; 
 };
 
 struct Line {
@@ -58,7 +68,7 @@ enum class SliceDir {
 struct Slice {
   int Nx, Ny;
   SliceDir dir;
-  float origin;
+  real_t origin;
 
   VecArray pos;
   RealArray rho, prs, E;
@@ -73,10 +83,10 @@ Vec operator+(const Vec &v1, const Vec &v2);
 Vec operator-(const Vec &v1, const Vec &v2);
 Vec& operator+=(Vec &v1, const Vec &v2);
 Vec& operator-=(Vec &v1, const Vec &v2);
-Vec operator*(const Vec &v, float q);
-Vec& operator*=(Vec &v, float q);
-Vec operator/(const Vec &v, float q);
-Vec& operator/=(Vec &v, float q);
+Vec operator*(const Vec &v, real_t q);
+Vec& operator*=(Vec &v, real_t q);
+Vec operator/(const Vec &v, real_t q);
+Vec& operator/=(Vec &v, real_t q);
 
 /** Bounding box helpers **/
 bool inBoundingBox(BoundingBox bb, Vec pos, int nDim);
