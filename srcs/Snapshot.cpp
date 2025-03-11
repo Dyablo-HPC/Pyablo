@@ -10,6 +10,7 @@ int Snapshot::vec_size = 1000000;
  **/
 std::map<std::string, hid_t> Snapshot::type_corresp = {
   {"Int", H5T_NATIVE_INT},
+  {"UInt", H5T_NATIVE_UINT},
   {"Float", H5T_NATIVE_FLOAT}
 };
 
@@ -529,19 +530,20 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
   // Selecting the element in the dataset
   herr_t status;
   hid_t space = H5Dget_space(att.handle);
+  if (space == H5I_INVALID_HID)
+      throw std::runtime_error("ERROR : Could not get space for attribute"); 
+
   status = H5Sselect_elements(space, H5S_SELECT_SET, nPos, select);
+  if (status < 0)
+    throw std::runtime_error("ERROR : Could not select elements for attribute"); 
 
   hsize_t d=nPos;
   hid_t memspace = H5Screate_simple(1, &d, NULL);
 
   out.resize(nPos);
-
-  if (data_type == H5T_NATIVE_INT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
-  }
-  else if (data_type == H5T_NATIVE_FLOAT) {
-    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
-  }
+  status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
+  if (status < 0)
+    throw std::runtime_error("ERROR : Could not read from attribute"); 
 
   delete [] select;
   H5Sclose(memspace);
