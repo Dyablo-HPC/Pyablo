@@ -48,7 +48,7 @@ class Snapshot {
   int nCells;     //!< Number of cells stored in the file
   int nVertices;  //!< Number of vertices stored in the file
 
-  float time; //!< Current time of the snapshot
+  double time; //!< Current time of the snapshot
 
   static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
 
@@ -63,7 +63,7 @@ class Snapshot {
 
   /** Snapshot reading/construction from Hdf5 **/
   void setName(std::string name);
-  void setTime(float time);
+  void setTime(double time);
   void setNDim(int nDim);
   void addH5Handle(std::string handle, std::string filename);
   void setConnectivity(std::string handle, std::string xpath, int nCells);
@@ -75,8 +75,8 @@ class Snapshot {
   BoundingBox getCellBoundingBox(uint iCell);
   Vec getCellCenter(uint iCell);
   Vec getCellSize(uint iCell);
-  float getCellVolume(uint iCell);
-  float getTime();
+  double getCellVolume(uint iCell);
+  double getTime();
 
   /** Vector access 
    * @note: Please use these for large query as most of them are made in parallel
@@ -101,11 +101,11 @@ class Snapshot {
   std::vector<T> probeCells(UIntArray iCells, std::string attribute);
 
   /** High-level probing methods **/
-  float probeQuantity(Vec pos, std::string attribute);
-  float probeDensity(Vec pos);
-  float probePressure(Vec pos);
-  float probeTotalEnergy(Vec pos);
-  float probeMach(Vec pos);
+  double probeQuantity(Vec pos, std::string attribute);
+  double probeDensity(Vec pos);
+  double probePressure(Vec pos);
+  double probeTotalEnergy(Vec pos);
+  double probeMach(Vec pos);
   Vec   probeMomentum(Vec pos);
   Vec   probeVelocity(Vec pos);
   int   probeLevel(Vec pos);
@@ -113,14 +113,14 @@ class Snapshot {
   int   probeOctant(Vec pos);
 
   // Integrated quantities
-  float getTotalMass();
-  float getTotalEnergy();
-  float getTotalInternalEnergy(double gamma);
-  float getTotalKineticEnergy();
-  float getMaxMach();
-  float getAverageMach();
+  double getTotalMass();
+  double getTotalEnergy();
+  double getTotalInternalEnergy(double gamma);
+  double getTotalKineticEnergy();
+  double getMaxMach();
+  double getAverageMach();
 
-  float     getRefinementCriterion(Vec pos);
+  double     getRefinementCriterion(Vec pos);
   RealArray getRefinementCriterion(VecArray pos);  
   
   // Vector functions

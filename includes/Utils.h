@@ -8,10 +8,10 @@
 
 namespace dyablo {
 
-using Vec = std::array<float, 3>;
+using Vec = std::array<double, 3>;
 using BoundingBox = std::pair<Vec, Vec>;
 
-using RealArray   = std::vector<float>;
+using RealArray   = std::vector<double>;
 using VecArray    = std::vector<Vec>;
 using IntArray    = std::vector<int>;
 using UIntArray   = std::vector<uint>;
@@ -34,11 +34,11 @@ enum Direction : uint8_t {
 };
 
 struct VarState {
-  float rho;
-  float vx;
-  float vy;
-  float vz;
-  float prs; 
+  double rho;
+  double vx;
+  double vy;
+  double vz;
+  double prs; 
 };
 
 struct Line {
@@ -59,7 +59,7 @@ enum class SliceDir {
 struct Slice {
   int Nx, Ny;
   SliceDir dir;
-  float origin;
+  double origin;
 
   VecArray pos;
   RealArray rho, prs, E;
@@ -74,10 +74,10 @@ Vec operator+(const Vec &v1, const Vec &v2);
 Vec operator-(const Vec &v1, const Vec &v2);
 Vec& operator+=(Vec &v1, const Vec &v2);
 Vec& operator-=(Vec &v1, const Vec &v2);
-Vec operator*(const Vec &v, float q);
-Vec& operator*=(Vec &v, float q);
-Vec operator/(const Vec &v, float q);
-Vec& operator/=(Vec &v, float q);
+Vec operator*(const Vec &v, double q);
+Vec& operator*=(Vec &v, double q);
+Vec operator/(const Vec &v, double q);
+Vec& operator/=(Vec &v, double q);
 
 /** Bounding box helpers **/
 bool inBoundingBox(BoundingBox bb, Vec pos, int nDim);
