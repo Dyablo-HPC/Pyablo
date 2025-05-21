@@ -120,9 +120,10 @@ void Snapshot::setConnectivity(std::string handle, std::string xpath, int nCells
  * The coordinates are stored in vertex_buffer
  * @param handle the handle from which the dataset will be read
  * @param xpath the path to the dataset in hdf5 space
+ * @param type the type (precision) of the vertex info
  * @param nVertices the number of vertices in the dataset
  **/
-void Snapshot::setCoordinates(std::string handle, std::string xpath, int nVertices) {
+void Snapshot::setCoordinates(std::string handle, std::string xpath, std::string type, int nVertices) {
   coordinates = H5Dopen2(handles[handle], xpath.c_str(), H5P_DEFAULT);
   if (coordinates < 0) {
     std::cerr << "ERROR : Could not access coordinates info at " << handle << "/" << xpath << std::endl;
@@ -132,11 +133,22 @@ void Snapshot::setCoordinates(std::string handle, std::string xpath, int nVertic
   data_handles.push_back(coordinates);
 
   // We read all the coords in memory
-  vertex_buffer.resize(nVertices*CoordSize);
-  herr_t status = H5Dread(coordinates, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, vertex_buffer.data());
-  if (status < 0) {
-    std::cerr << "ERROR while reading coordinates !" << std::endl;
-    std::exit(1);
+  size_t nCoord = nVertices*CoordSize;
+  herr_t status;
+  vertex_buffer.resize(nCoord);
+  auto data_type = type_corresp[type];
+  if (data_type == H5T_NATIVE_FLOAT) {
+    float* values = new float[nCoord];
+    status = H5Dread(coordinates, data_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, values);
+    for (int i=0; i < nCoord; ++i)
+      vertex_buffer[i] = static_cast<double>(values[i]);
+    delete [] values;
+  }
+  else {
+    double* values = new double[nCoord];
+    status = H5Dread(coordinates, data_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, values);
+    std::copy(values, values+nCoord, vertex_buffer.begin());
+    delete [] values;
   }
 }
 

@@ -92,8 +92,14 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   int nVertices = extractDimensions(coordinates.attribute("Dimensions").value());
   auto [coord_handle, coord_path] = splitH5Filename(coordinates.child_value());
   std::string coord_filename = path + coord_handle;
-  snap.addH5Handle(coord_handle, coord_filename);
-  snap.setCoordinates(coord_handle, coord_path, nVertices);
+
+  std::string type = coordinates.attribute("NumberType").value();
+  std::string precision = coordinates.attribute("Precision").value();
+  
+  snap.addH5Handle(coord_handle, coord_filename); 
+  if (type == "Float" && precision == "8")
+      type = "Double"; 
+  snap.setCoordinates(coord_handle, coord_path, type, nVertices);
 
   /**
    * Attributes info
