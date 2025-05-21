@@ -67,7 +67,7 @@ class Snapshot {
   void setNDim(int nDim);
   void addH5Handle(std::string handle, std::string filename);
   void setConnectivity(std::string handle, std::string xpath, int nCells);
-  void setCoordinates(std::string handle, std::string xpath, int nVertices);
+  void setCoordinates(std::string handle, std::string xpath, std::string type, int nVertices);
   void addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center);
 
   /** Cell info and access **/
