@@ -446,6 +446,11 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
   }
   else if (data_type == H5T_NATIVE_FLOAT) {
+    float val_float;
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &val_float);
+    value = static_cast<T>(val_float);
+  }
+  else if (data_type == H5T_NATIVE_DOUBLE) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
   }
 
@@ -500,6 +505,13 @@ std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attrib
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
   else if (data_type == H5T_NATIVE_FLOAT) {
+    float *float_array = new float[nCells];
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, float_array);
+    for (int i=0; i < nCells; ++i)
+      out[i] = static_cast<double>(float_array[i]);
+    delete [] float_array;
+  }
+  else if (data_type == H5T_NATIVE_DOUBLE) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
 
@@ -555,6 +567,13 @@ std::vector<T> Snapshot::probeLocation(VecArray pos, std::string attribute) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
   else if (data_type == H5T_NATIVE_FLOAT) {
+    float *float_array = new float[nPos];
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, float_array);
+    for (int i=0; i < nPos; ++i)
+      out[i] = static_cast<double>(float_array[i]);
+    delete [] float_array;
+  }
+  else if (data_type == H5T_NATIVE_DOUBLE) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
   }
 
@@ -1229,9 +1248,8 @@ RealArray Snapshot::readAllFloat(std::string attribute) {
   }
   Attribute &att = attributes[attribute];
   hid_t data_type = type_corresp[att.type];
-  std::cout << "Attribute " << attribute << " has type " << att.type << std::endl;
   if (data_type != H5T_NATIVE_FLOAT && data_type != H5T_NATIVE_DOUBLE) {
-    std::cerr << "ERROR : Datatype of " << attribute << " is not double/double !" << std::endl;
+    std::cerr << "ERROR : Datatype of " << attribute << " is not float/double !" << std::endl;
     return res;
   }
 
