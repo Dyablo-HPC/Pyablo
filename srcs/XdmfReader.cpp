@@ -117,7 +117,6 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
     snap.addH5Handle(att_handle, att_filename);
     if (type == "Float" && precision == "8")
       type = "Double"; 
-    std::cout << "Attribute " << name << " has type \"" << type << "\"" << std::endl;
     snap.addAttribute(att_handle, att_path, name, type, center);  
   }
   return snap;
