@@ -10,6 +10,7 @@ int Snapshot::vec_size = 1000000;
  **/
 std::map<std::string, hid_t> Snapshot::type_corresp = {
   {"Int", H5T_NATIVE_INT},
+  {"UInt", H5T_NATIVE_UINT},
   {"Float", H5T_NATIVE_FLOAT},
   {"Double", H5T_NATIVE_DOUBLE}
 };
@@ -442,7 +443,7 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
 
   T value;
 
-  if (data_type == H5T_NATIVE_INT) {
+  if (data_type == H5T_NATIVE_UINT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, &value);
   }
   else if (data_type == H5T_NATIVE_FLOAT) {
@@ -490,7 +491,6 @@ std::vector<T> Snapshot::probeCells(UIntArray iCells, std::string attribute) {
 
   Attribute &att = attributes[attribute];
   hid_t data_type = type_corresp[att.type];
-
   // Selecting the element in the dataset
   herr_t status;
   hid_t space = H5Dget_space(att.handle);
@@ -503,6 +503,12 @@ std::vector<T> Snapshot::probeCells(UIntArray iCells, std::string attribute) {
 
   if (data_type == H5T_NATIVE_INT) {
     herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, out.data());
+  }
+  else if (data_type == H5T_NATIVE_UINT) {
+    std::vector<uint32_t> tmp;
+    tmp.resize(nCells);
+    herr_t status = H5Dread(att.handle, data_type, memspace, space, H5P_DEFAULT, tmp.data());
+    std::copy(tmp.begin(), tmp.end(), out.begin());
   }
   else if (data_type == H5T_NATIVE_FLOAT) {
     float *float_array = new float[nCells];
