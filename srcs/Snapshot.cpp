@@ -276,7 +276,7 @@ Vec Snapshot::getCellCenter(uint iCell) {
  * @param iCells the indices of the cells to probe
  * @return a vector of positions corresponding to the center of the cells
  **/
-VecArray Snapshot::getCellCenter(std::vector<uint> iCells) {
+VecArray Snapshot::getCellCenter(UIntArray iCells) {
   uint nPos = iCells.size();
   VecArray out(nPos);
   
@@ -319,7 +319,7 @@ Vec Snapshot::getCellSize(uint iCell) {
  * @param iCells a vector of cells to probe
  * @return a vector of Vec indicating the size of each cell probed
  **/
-VecArray Snapshot::getCellSize(std::vector<uint> iCells) {
+VecArray Snapshot::getCellSize(UIntArray iCells) {
   uint nSizes = iCells.size();
   VecArray out(nSizes);
   
@@ -350,7 +350,7 @@ double Snapshot::getCellVolume(uint iCell) {
  * @param iCells a vector of cells to probe
  * @return a vector of doubles indicating the volume/surface of each cell probed
  **/
-RealArray Snapshot::getCellVolume(std::vector<uint> iCells) {
+RealArray Snapshot::getCellVolume(UIntArray iCells) {
   uint nSizes = iCells.size();
   RealArray out(nSizes);
   
@@ -473,7 +473,7 @@ T Snapshot::probeLocation(Vec pos, std::string attribute) {
  * @todo Check for h5 errors while reading
  **/
 template<typename T>
-std::vector<T> Snapshot::probeCells(std::vector<uint> iCells, std::string attribute) {
+std::vector<T> Snapshot::probeCells(UIntArray iCells, std::string attribute) {
   std::vector<T> out;
   if (attributes.count(attribute) == 0) {
     std::cerr << "ERROR : Attribute " << attribute << " is not stored in file !" << std::endl;
@@ -926,7 +926,7 @@ double Snapshot::getTotalMass() {
     end_id = std::min(base_id + vec_size, nCells);
 
     // Filling the id array
-    std::vector<uint> cid;
+    UIntArray cid;
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
@@ -962,7 +962,7 @@ double Snapshot::getTotalEnergy() {
     end_id = std::min(base_id + vec_size, nCells);
     
     // Filling the id array
-    std::vector<uint> cid;
+    UIntArray cid;
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
@@ -1002,7 +1002,7 @@ double Snapshot::getTotalInternalEnergy(double gamma) {
     end_id = std::min(base_id + vec_size, nCells);
     
     // Filling the id array
-    std::vector<uint> cid;
+    UIntArray cid;
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
@@ -1035,7 +1035,7 @@ double Snapshot::getTotalKineticEnergy() {
     end_id = std::min(base_id + vec_size, nCells);
 
     // Filling the id array
-    std::vector<uint> cid;
+    UIntArray cid;
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
@@ -1071,7 +1071,7 @@ double Snapshot::getMaxMach() {
     end_id = std::min(base_id + vec_size, nCells);
 
     // Filling the id array
-    std::vector<uint> cid;
+    UIntArray cid;
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
@@ -1098,7 +1098,7 @@ double Snapshot::getAverageMach() {
     end_id = std::min(base_id + vec_size, nCells);
 
     // Filling the id array
-    std::vector<uint> cid;
+    UIntArray cid;
     for (int i=base_id; i < end_id; ++i)
       cid.push_back(i);
 
@@ -1138,7 +1138,7 @@ RealArray Snapshot::getRefinementCriterion(VecArray pos) {
  * @param iCells the ids of the cells to extract
  * @return a vector of densities for each cell
  **/
-RealArray Snapshot::getDensity(std::vector<uint> iCells) {
+RealArray Snapshot::getDensity(UIntArray iCells) {
   return probeCells<double>(iCells, "rho");
 }
 
@@ -1147,7 +1147,7 @@ RealArray Snapshot::getDensity(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of pressures for each cell
  **/
-RealArray Snapshot::getPressure(std::vector<uint> iCells) {
+RealArray Snapshot::getPressure(UIntArray iCells) {
   return probeCells<double>(iCells, "P");
 }
 
@@ -1156,7 +1156,7 @@ RealArray Snapshot::getPressure(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of energies for each cell
  **/
-RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
+RealArray Snapshot::getTotalEnergy(UIntArray iCells) {
   return probeCells<double>(iCells, "e_tot");
 }
 
@@ -1165,7 +1165,7 @@ RealArray Snapshot::getTotalEnergy(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of Mach number corresponding to the flow each cell
  **/
-RealArray Snapshot::getMach(std::vector<uint> iCells) {
+RealArray Snapshot::getMach(UIntArray iCells) {
   return probeCells<double>(iCells, "Mach");
 }
 
@@ -1174,7 +1174,7 @@ RealArray Snapshot::getMach(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of momenta for each cell
  **/
-VecArray Snapshot::getMomentum(std::vector<uint> iCells) {
+VecArray Snapshot::getMomentum(UIntArray iCells) {
   RealArray res[3];
   res[0] = probeCells<double>(iCells, "rho_vx");
   res[1] = probeCells<double>(iCells, "rho_vy");
@@ -1195,7 +1195,7 @@ VecArray Snapshot::getMomentum(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of velocities for each cell
  **/
-VecArray Snapshot::getVelocity(std::vector<uint> iCells) {
+VecArray Snapshot::getVelocity(UIntArray iCells) {
   VecArray momentum = getMomentum(iCells);
   RealArray density = getDensity(iCells);
   VecArray out(iCells.size());
@@ -1212,7 +1212,7 @@ VecArray Snapshot::getVelocity(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of levels for each cell
  **/
-IntArray Snapshot::getLevel(std::vector<uint> iCells) {
+IntArray Snapshot::getLevel(UIntArray iCells) {
   return probeCells<int>(iCells, "level");
 }
 
@@ -1221,7 +1221,7 @@ IntArray Snapshot::getLevel(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of rank for each cell
  **/
-IntArray Snapshot::getRank(std::vector<uint> iCells) {
+IntArray Snapshot::getRank(UIntArray iCells) {
   return probeCells<int>(iCells, "rank");
 }
 
@@ -1230,7 +1230,7 @@ IntArray Snapshot::getRank(std::vector<uint> iCells) {
  * @param iCells the ids of the cells to extract
  * @return a vector of octant ids for each cell
  **/
-IntArray Snapshot::getOctant(std::vector<uint> iCells) {
+IntArray Snapshot::getOctant(UIntArray iCells) {
   return probeCells<int>(iCells, "iOct");
 }
 
