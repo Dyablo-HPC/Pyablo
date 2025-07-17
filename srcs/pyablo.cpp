@@ -51,6 +51,7 @@ PYBIND11_MODULE(pyablo, m) {
     .def("probeLevel",      static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeLevel))
     .def("probeOctant",     static_cast<std::vector<int>   (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeOctant))
   
+    .def("getQuantity", static_cast<std::vector<double> (Snapshot::*)(std::vector<uint>, std::string)>(&Snapshot::getQuantity))
     .def("getDensity",  static_cast<std::vector<double> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getDensity))
     .def("getPressure", static_cast<std::vector<double> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getPressure))
     .def("getEnergy",   static_cast<std::vector<double> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getTotalEnergy))

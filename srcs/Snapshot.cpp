@@ -1134,6 +1134,16 @@ RealArray Snapshot::getRefinementCriterion(VecArray pos) {
 }
 
 /**
+ * Extracts a quantity from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @param attribute the name of the field to extract
+ * @return a vector of the given quantity for each cell
+ */
+RealArray Snapshot::getQuantity(UIntArray iCells, std::string attribute) {
+  return probeCells<double>(iCells, attribute);
+}
+
+/**
  * Extracts density from a list of cells
  * @param iCells the ids of the cells to extract
  * @return a vector of densities for each cell

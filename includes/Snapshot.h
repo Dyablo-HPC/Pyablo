@@ -136,6 +136,7 @@ class Snapshot {
   IntArray  probeOctant(VecArray pos);
 
   // By cell
+  RealArray getQuantity(UIntArray iCells, std::string attribute);
   RealArray getDensity(UIntArray iCells);
   RealArray getPressure(UIntArray iCells);
   RealArray getTotalEnergy(UIntArray iCells);
