@@ -1802,4 +1802,43 @@ void Snapshot::fillSlice(Slice &slice) {
     slice.prs = getPressure(cellIds);
 }
 
+/** 
+ * @brief Returns a cell index vector of the cells of a snapshot overlapping a regular grid
+ * 
+ * @param extent the bounding box of the regular grid
+ * @param Nx number of cells along X in the regular grid
+ * @param Ny number of cells along Y in the regular grid
+ * @param Nz number of cells along Z in the regular grid
+ */
+UIntArray Snapshot::getCellIndicesForRegularGrid(BoundingBox extent, int Nx, int Ny, int Nz) {
+  double dx = (extent.second[IX] - extent.first[IX]) / Nx;
+  double dy = (extent.second[IY] - extent.first[IY]) / Ny;
+  double dz = (extent.second[IZ] - extent.first[IZ]) / Nz;
+
+  std::cout << "Building position grid" << std::endl;
+  UIntArray cids;
+  cids.resize(Nx*Ny*Nz);
+
+  #pragma omp parallel for shared(cids), schedule(dynamic)
+  for (uint iCell=0; iCell < nCells; ++iCell) {
+    auto [min, max] = getCellBoundingBox(iCell);
+    auto pp = (min + max) * 0.5;
+    // Cell is a match
+    if (inBoundingBox(extent, pp, 3)) {
+      uint ii0 = (min[IX] - extent.first[IX]) / dx;
+      uint ij0 = (min[IY] - extent.first[IY]) / dy;
+      uint ik0 = (min[IZ] - extent.first[IZ]) / dz;
+      uint ii1 = (max[IX] - extent.first[IX]) / dx;
+      uint ij1 = (max[IY] - extent.first[IY]) / dy;
+      uint ik1 = (max[IZ] - extent.first[IZ]) / dz;
+      for (int ii=ii0; ii < ii1; ++ii)
+        for (int ij=ij0; ij < ij1; ++ij)
+          for (int ik=ik0; ik < ik1; ++ik)
+            cids[ik + ij*Nz + ii*Ny*Nz] = iCell;
+    }
+  }
+
+  return cids;
+}
+
 }

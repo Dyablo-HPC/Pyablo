@@ -17,7 +17,6 @@ PYBIND11_MODULE(pyablo, m) {
     .def(py::init())
     .def("readSnapshot", &XdmfReader::readSnapshot)
     .def("readTimeSeries", &XdmfReader::readTimeSeries);
-  
   /**
    * Snapshot
    **/
@@ -82,6 +81,9 @@ PYBIND11_MODULE(pyablo, m) {
 
     .def("fillLine",       &Snapshot::fillLine)
     .def("fillLineUnique", &Snapshot::fillLineUnique)
+    .def("fillSlice",      &Snapshot::fillSlice)
+
+    .def("getCellIndicesForRegularGrid", &Snapshot::getCellIndicesForRegularGrid)
    ;
 
    /**
@@ -98,6 +100,16 @@ PYBIND11_MODULE(pyablo, m) {
      .def_readonly("E",       &Line::E)
      .def_readonly("vel",     &Line::vel)
      .def_readonly("cellIds", &Line::cellIds);
+
+  /**
+   * Regular grid structure
+   */
+  py::class_<dyablo::RegularGrid>(m, "RegularGrid")
+     .def(py::init())
+     .def_readonly("Nx",  &RegularGrid::Nx)
+     .def_readonly("Nx",  &RegularGrid::Ny)
+     .def_readonly("Nx",  &RegularGrid::Nz)
+     .def_readonly("qty", &RegularGrid::qty);
 
   m.doc() = "pyablo python bindings"; // optional module docstring
 }

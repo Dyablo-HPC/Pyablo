@@ -66,6 +66,13 @@ struct Slice {
   RealArray vx, vy, vz;
 };
 
+struct RegularGrid {
+  int Nx, Ny, Nz;
+  BoundingBox extent;
+  
+  RealArray qty;
+};
+
 template<typename Tout, typename Tin>
 Tout reshapeArray(const Tin &array, int Nx, int Ny);
 

@@ -161,6 +161,9 @@ class Snapshot {
   void fillLineUnique(Line &line);
   void fillSlice(Slice &slice);
 
+ 
+  UIntArray getCellIndicesForRegularGrid(BoundingBox extent, int Nx, int Ny, int Nz);
+
   // Static variable for vectorized reading
   static int vec_size;
 };
