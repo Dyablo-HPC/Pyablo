@@ -1765,7 +1765,7 @@ void Snapshot::fillSlice(Slice &slice) {
   }
 
   double dd1 = (bb.second[d1] - bb.first[d1]) / (slice.Nx - 1);
-  double dd2 = (bb.second[d2] - bb.first[d1]) / (slice.Ny - 1);
+  double dd2 = (bb.second[d2] - bb.first[d2]) / (slice.Ny - 1);
 
   // Building position vector
   Vec start = cur_pos;
