@@ -68,10 +68,10 @@ Tout reshapeArray(const Tin &array, int Nx, int Ny) {
  * @param nDim number of dimensions to test
  **/
 bool inBoundingBox(BoundingBox bb, Vec pos, int nDim) {
-  for (int i=0; i < nDim; ++i) {
-    if (pos[i] < bb.first[i] || pos[i] > bb.second[i])
-      return false;
-  }
-  return true;
+  bool res = pos[0] > bb.first[0] && pos[0] < bb.second[0]
+         && (pos[1] > bb.first[1] && pos[1] < bb.second[1]);
+  if (res && nDim == 3)
+    res = (pos[2] > bb.first[2] && pos[2] < bb.second[2]);
+  return res;
 }
 }
