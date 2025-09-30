@@ -361,4 +361,25 @@ plt.tight_layout()
 plt.show()
 ```
 
+## Regular grid projection
+
+Analyzing AMR runs can be particularly difficult. If projecting the data on a regular grid is a valid option for you, there is an easy way to do this in Dyablo.
+
+The method `getCellIndicesForRegularGrid` projects a box of the data onto a regular grid using a nearest-grid-point strategy. For instance, let's imagine we have a snapshot `snap`, and we want to project a subset of the domain to a regular grid. Let's take the region $[0.5, 0.5, 0.5] \times [0.75, 0.75, 0.75]$ and project it on a $128^3$ regular grid. First we obtain the indices mapping the regular grid to the AMR grid:
+
+```python
+## An extent for the regular grid under the form [[xmin, ymin, zmin], [xmax, ymax, zmax]]
+extent = [[0.5, 0.5, 0.5], [0.75, 0.75, 0.75]]
+Nx = 128
+Ny = 128
+Nz = 128
+
+cell_ids = snap.getCellIndicesForRegularGrid(extent, Nx, Ny, Nz)
+```
+
+Now we have a list of indices that constitutes a regular grid of $N_x \times N_y \times N_z$ points, we can get the quantities of the grid using the `getQuantity` method as before: 
+
+```python
+rho = np.array(snap.getQuantity(cell_ids, 'rho')).reshape((Nx, Ny, Nz))
+```
 
