@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 project(pyablo LANGUAGES CXX C)
 
+set(PYBIND11_FINDPYTHON ON CACHE BOOL "Use FindPython with pybind11")
+
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenMP)
@@ -13,8 +15,8 @@ if( ${HDF5_IS_PARALLEL} )
 endif()
 message(  ${Pyablo_HDF5_TARGETS} )
 
-find_package(pybind11 REQUIRED)
-
+find_package(pybind11 CONFIG REQUIRED)
+# add_subdirectory(external/pybind11)
 include_directories(includes)
 include_directories(external/pugixml/src)
 include_directories(external/stb)
@@ -27,11 +29,11 @@ set(CXX_FLAGS
 
 list(JOIN CXX_FLAGS " " CMAKE_CXX_FLAGS)
 
-set(SRCS srcs/XdmfReader.cpp
-         srcs/Snapshot.cpp
-         srcs/Utils.cpp)
+set(SRC src/XdmfReader.cpp
+         src/Snapshot.cpp
+         src/Utils.cpp)
 
-add_library(pyablo_lib ${SRCS})
+add_library(pyablo_lib ${SRC})
 target_link_libraries(pyablo_lib PUBLIC OpenMP::OpenMP_CXX ${Pyablo_HDF5_TARGETS})
 
 set(LIBS  pyablo_lib 
@@ -41,12 +43,13 @@ set(LIBS  pyablo_lib
           pybind11::windows_extras)
 
 ##### Python module
-pybind11_add_module(pyablo srcs/pyablo.cpp)
-target_link_libraries(pyablo PUBLIC ${LIBS})
+pybind11_add_module(_pyablo src/pyablo.cpp)
+target_link_libraries(_pyablo PUBLIC ${LIBS})
 
-pybind11_extension(pyablo)
-pybind11_strip(pyablo)
+install(TARGETS _pyablo DESTINATION pyablo) # Here _pyablo is the name of the binary, while pyablo is the folder under which to place it
+# pybind11_extension(pyablo)
+# pybind11_strip(pyablo)
 
-set_target_properties(pyablo PROPERTIES CXX_VISIBILITY_PRESET "hidden"
-                             CUDA_VISIBILITY_PRESET "hidden")
+# set_target_properties(pyablo PROPERTIES CXX_VISIBILITY_PRESET "hidden"
+#                              CUDA_VISIBILITY_PRESET "hidden")
 
