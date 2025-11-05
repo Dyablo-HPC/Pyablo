@@ -1,0 +1,85 @@
+# Documentation des classes et fonctions du module `pyablo`
+
+## Classe : `XdmfReader`
+
+### Méthodes
+| Méthode | Description |
+|---------|-------------|
+| `readSnapshot` | Lit un snapshot. |
+| `readTimeSeries` | Lit une série temporelle. |
+
+---
+
+## Classe : `Snapshot`
+
+### Méthodes
+| Méthode | Description |
+|---------|-------------|
+| `close` | Ferme le snapshot. |
+| `setName` | Définit le nom du snapshot. |
+| `setNDim` | Définit le nombre de dimensions. |
+| `print` | Affiche des informations sur le snapshot. |
+| `getCellFromPosition` | Récupère une cellule à partir d'une position. |
+| `getCellsFromPositions` | Récupère plusieurs cellules à partir de positions. |
+| `getCellBoundingBox` | Récupère la boîte englobante d'une cellule. |
+| `getNCells` | Récupère le nombre total de cellules. |
+| `getUniqueCells` | Récupère les cellules uniques. |
+| `hasAttribute` | Vérifie si un attribut existe. |
+| `getDomainBoundingBox` | Récupère la boîte englobante du domaine. |
+| `getCellsCenter` | Récupère les centres des cellules spécifiées. |
+| `getCellsSize` | Récupère les tailles des cellules spécifiées. |
+| `getCellsVolume` | Récupère les volumes des cellules spécifiées. |
+| `probeQuantity` | Sonde une quantité physique à partir de positions. |
+| `probeDensity` | Sonde la densité à partir de positions. |
+| `probePressure` | Sonde la pression à partir de positions. |
+| `probeEnergy` | Sonde l'énergie totale à partir de positions. |
+| `probeMach` | Sonde le nombre de Mach à partir de positions. |
+| `probeMomentum` | Sonde la quantité de mouvement à partir de positions. |
+| `probeVelocity` | Sonde la vitesse à partir de positions. |
+| `probeRank` | Sonde le rang à partir de positions. |
+| `probeLevel` | Sonde le niveau à partir de positions. |
+| `probeOctant` | Sonde l'octant à partir de positions. |
+| `getQuantity` | Récupère une quantité physique pour des cellules spécifiées. |
+| `getDensity` | Récupère la densité pour des cellules spécifiées. |
+| `getPressure` | Récupère la pression pour des cellules spécifiées. |
+| `getEnergy` | Récupère l'énergie totale pour des cellules spécifiées. |
+| `getMach` | Récupère le nombre de Mach pour des cellules spécifiées. |
+| `getMomentum` | Récupère la quantité de mouvement pour des cellules spécifiées. |
+| `getVelocity` | Récupère la vitesse pour des cellules spécifiées. |
+| `getLevel` | Récupère le niveau pour des cellules spécifiées. |
+| `getRank` | Récupère le rang pour des cellules spécifiées. |
+| `getOctant` | Récupère l'octant pour des cellules spécifiées. |
+| `getRefinementCriterion` | Récupère le critère de raffinement pour des positions. |
+| `getTotalMass` | Récupère la masse totale. |
+| `getTotalEnergy` | Récupère l'énergie totale. |
+| `getTotalKineticEnergy` | Récupère l'énergie cinétique totale. |
+| `getTotalInternalEnergy` | Récupère l'énergie interne totale. |
+| `getMaxMach` | Récupère le nombre de Mach maximum. |
+| `getAverageMach` | Récupère le nombre de Mach moyen. |
+| `getTime` | Récupère le temps. |
+| `readAllFloat` | Lit tous les flottants d'un fichier. |
+| `mortonSort2d` | Trie selon la courbe de Morton en 2D. |
+| `mortonSort3d` | Trie selon la courbe de Morton en 3D. |
+| `getSortingMask2d` | Récupère un masque de tri en 2D. |
+| `getSortingMask3d` | Récupère un masque de tri en 3D. |
+| `fillLine` | Remplit une ligne de données. |
+| `fillLineUnique` | Remplit une ligne de données uniques. |
+
+---
+
+## Classe : `Line`
+
+### Attributs
+| Attribut | Type | Description |
+|----------|------|-------------|
+| `Nl` | `uint` | Nombre de points dans la ligne. |
+| `start` | `Vec` | Position de départ. |
+| `end` | `Vec` | Position de fin. |
+| `pos` | `Vec` | Positions des points. |
+| `rho` | `double` | Densité. |
+| `prs` | `double` | Pression. |
+| `E` | `double` | Énergie. |
+| `vel` | `Vec` | Vitesse. |
+| `cellIds` | `std::vector<uint>` | Identifiants des cellules. |
+
+---
