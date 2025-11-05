@@ -2,9 +2,23 @@
 
 Analysis tools for dyablo
 
+## Installation
+
+For a quick installation, you can use `pip`
+
+```bash
+pip install "git+https://github.com/Dyablo-HPC/Pyablo@master"
+```
+
+> [!TIP]  
+> If available, we recommand the use of `uv` for a faster installation  
+> You can simply type `uv pip install "git+https://github.com/Dyablo-HPC/Pyablo@master"`  
+> Or `uv add "git+https://github.com/Dyablo-HPC/Pyablo@master"` if you already have an active `uv` environment.
+
+
 ## Dependencies
 
-- Python 3.6+
+- Python 3.9+
 - HDF5 1.10+ (not tested on 1.8)
 - Cython
 - Pybind11
