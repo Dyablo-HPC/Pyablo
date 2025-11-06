@@ -9,7 +9,7 @@ using namespace dyablo;
 /**
  * Binding stuff to the pydy module
  **/
-PYBIND11_MODULE(pyablo, m) {
+PYBIND11_MODULE(_pyablo, m) {
   /**
    *  XdmfReader
    **/
