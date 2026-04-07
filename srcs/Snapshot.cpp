@@ -4,7 +4,7 @@
 namespace dyablo {
 
 namespace{
-  real_t det(const Vec& u, const Vec& v, const Vec& w)
+  double det(const Vec& u, const Vec& v, const Vec& w)
   {
     return u[0]*v[1]*w[2] + u[1]*v[2]*w[0] + u[2]*v[0]*w[1]
           -u[2]*v[1]*w[0] - u[1]*v[0]*w[2] - u[0]*v[2]*w[1];
@@ -28,7 +28,7 @@ namespace{
     };
   }
 
-  Vec operator*(const real_t a, const Vec &b)
+  Vec operator*(const double a, const Vec &b)
   {
     return {
       a*b[0],
@@ -483,6 +483,7 @@ VecArray Snapshot::getCellSize(UIntArray iCells) {
  * @param iCell the index of the cell to probe
  * @return a double indicating the surface in 2D or the volume in 3D of the cell
  **/
+#ifndef USE_CELL_CENTROID
 double Snapshot::getCellVolume(uint iCell) {
   BoundingBox bb = getCellBoundingBox(iCell);
   double out = bb.second[0] - bb.first[0];
