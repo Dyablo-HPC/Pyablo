@@ -9,7 +9,7 @@
 namespace dyablo
 {
   
-using TimeSeries = std::vector<std::filesystem::path>;
+using TimeSeries = std::vector<std::string>;
 
 class XdmfReader {
 public: 

@@ -54,7 +54,7 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   auto geometry = grid.child("Geometry");
 
   std::string time_str = time.attribute("Value").value();
-  real_t time_value = std::strtod(time_str.c_str(), nullptr);
+  double time_value = std::strtod(time_str.c_str(), nullptr);
   snap.setTime(time_value);
   std::string grid_name = grid.attribute("Name").value();
   snap.setName(grid_name);
@@ -92,8 +92,14 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
   int nVertices = extractDimensions(coordinates.attribute("Dimensions").value());
   auto [coord_handle, coord_path] = splitH5Filename(coordinates.child_value());
   std::string coord_filename = path + coord_handle;
-  snap.addH5Handle(coord_handle, coord_filename);
-  snap.setCoordinates(coord_handle, coord_path, nVertices);
+
+  std::string type = coordinates.attribute("NumberType").value();
+  std::string precision = coordinates.attribute("Precision").value();
+  
+  snap.addH5Handle(coord_handle, coord_filename); 
+  if (type == "Float" && precision == "8")
+      type = "Double"; 
+  snap.setCoordinates(coord_handle, coord_path, type, nVertices);
 
   /**
    * Attributes info
@@ -104,10 +110,13 @@ Snapshot XdmfReader::readSnapshot(std::string filename) {
 
     auto di = att.child("DataItem");
     std::string type = di.attribute("NumberType").value();
+    std::string precision = di.attribute("Precision").value();
     
     auto [att_handle, att_path] = splitH5Filename(di.child_value());
     std::string att_filename = path + att_handle;
     snap.addH5Handle(att_handle, att_filename);
+    if (type == "Float" && precision == "8")
+      type = "Double"; 
     snap.addAttribute(att_handle, att_path, name, type, center);  
   }
   return snap;

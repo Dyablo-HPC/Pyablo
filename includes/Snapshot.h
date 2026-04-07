@@ -48,7 +48,7 @@ class Snapshot {
   int nCells;     //!< Number of cells stored in the file
   int nVertices;  //!< Number of vertices stored in the file
 
-  real_t time; //!< Current time of the snapshot
+  double time; //!< Current time of the snapshot
 
   static std::map<std::string, hid_t> type_corresp; //!< Mapping between type names and hid equivalents
 
@@ -63,11 +63,11 @@ class Snapshot {
 
   /** Snapshot reading/construction from Hdf5 **/
   void setName(std::string name);
-  void setTime(real_t time);
+  void setTime(double time);
   void setNDim(int nDim);
   void addH5Handle(std::string handle, std::string filename);
   void setConnectivity(std::string handle, std::string xpath, int nCells);
-  void setCoordinates(std::string handle, std::string xpath, int nVertices);
+  void setCoordinates(std::string handle, std::string xpath, std::string type, int nVertices);
   void addAttribute(std::string handle, std::string xpath, std::string name, std::string type, std::string center);
 
   /** Cell info and access **/
@@ -75,8 +75,8 @@ class Snapshot {
   BoundingBox getCellBoundingBox(uint iCell);
   Vec getCellCenter(uint iCell);
   Vec getCellSize(uint iCell);
-  real_t getCellVolume(uint iCell);
-  real_t getTime();
+  double getCellVolume(uint iCell);
+  double getTime();
 
   /** Vector access 
    * @note: Please use these for large query as most of them are made in parallel
@@ -102,10 +102,11 @@ class Snapshot {
   std::vector<T> probeCells(UIntArray iCells, std::string attribute);
 
   /** High-level probing methods **/
-  real_t probeDensity(Vec pos);
-  real_t probePressure(Vec pos);
-  real_t probeTotalEnergy(Vec pos);
-  real_t probeMach(Vec pos);
+  double probeQuantity(Vec pos, std::string attribute);
+  double probeDensity(Vec pos);
+  double probePressure(Vec pos);
+  double probeTotalEnergy(Vec pos);
+  double probeMach(Vec pos);
   Vec   probeMomentum(Vec pos);
   Vec   probeVelocity(Vec pos);
   int   probeLevel(Vec pos);
@@ -113,17 +114,18 @@ class Snapshot {
   int   probeOctant(Vec pos);
 
   // Integrated quantities
-  real_t getTotalMass();
-  real_t getTotalEnergy();
-  real_t getTotalInternalEnergy(double gamma);
-  real_t getTotalKineticEnergy();
-  real_t getMaxMach();
-  real_t getAverageMach();
+  double getTotalMass();
+  double getTotalEnergy();
+  double getTotalInternalEnergy(double gamma);
+  double getTotalKineticEnergy();
+  double getMaxMach();
+  double getAverageMach();
 
-  real_t     getRefinementCriterion(Vec pos);
+  double    getRefinementCriterion(Vec pos);
   RealArray getRefinementCriterion(VecArray pos);  
   
   // Vector functions
+  RealArray probeQuantity(VecArray pos, std::string attribute);
   RealArray probeDensity(VecArray pos);
   RealArray probePressure(VecArray pos);
   RealArray probeTotalEnergy(VecArray pos);
@@ -135,6 +137,7 @@ class Snapshot {
   IntArray  probeOctant(VecArray pos);
 
   // By cell
+  RealArray getQuantity(UIntArray iCells, std::string attribute);
   RealArray getDensity(UIntArray iCells);
   RealArray getPressure(UIntArray iCells);
   RealArray getTotalEnergy(UIntArray iCells);
@@ -156,6 +159,7 @@ class Snapshot {
   UInt64Array getSortingMask3d(uint iLevel, uint bx, uint by, uint bz, uint coarse_res_x, uint coarse_res_y, uint coarse_res_z);
 
   void fillLine(Line &line);
+  void fillLineUnique(Line &line);
   void fillSlice(Slice &slice);
 
   // Static variable for vectorized reading
