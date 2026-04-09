@@ -1123,7 +1123,7 @@ double Snapshot::getTotalMagneticDivergence() {
     uint nV = end_id - base_id;
 
     for (int i=0; i<nV; ++i)
-      total_divB += 0.5 * cell_volumes[i] * divB[i];
+      total_divB += cell_volumes[i] * std::abs(divB[i]);
 
     base_id += vec_size;
   }
