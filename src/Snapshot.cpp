@@ -1064,6 +1064,73 @@ double Snapshot::getTotalKineticEnergy() {
 }
 
 /**
+ * Returns the integrated magnetic energy over the domain
+ * @return the total magnetic energy in the domain
+ **/
+double Snapshot::getTotalMagneticEnergy() {
+  double total_Em = 0.0;
+  VecArray magnetic_field;
+  RealArray cell_volumes;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+
+    // Filling the id array
+    UIntArray cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    magnetic_field = getMagneticField(cid);
+    cell_volumes = getCellVolume(cid);
+    
+    uint nV = end_id - base_id;
+    auto norm2 = [](Vec v) {
+      return v[0]*v[0]+v[1]*v[1]+v[2]*v[2];
+    };
+
+    for (int i=0; i<nV; ++i)
+      total_Em += 0.5 * cell_volumes[i] * norm2(magnetic_field[i]);
+
+    base_id += vec_size;
+  }
+  return total_Em;
+}
+
+/**
+ * Returns the integrated magnetic energy over the domain
+ * @return the total magnetic energy in the domain
+ **/
+double Snapshot::getTotalMagneticDivergence() {
+  double total_divB = 0.0;
+  RealArray divB;
+  RealArray cell_volumes;
+
+  int base_id = 0;
+  int end_id;
+  while (base_id < nCells) {
+    end_id = std::min(base_id + vec_size, nCells);
+
+    // Filling the id array
+    UIntArray cid;
+    for (int i=base_id; i < end_id; ++i)
+      cid.push_back(i);
+
+    divB = getDivB(cid);
+    cell_volumes = getCellVolume(cid);
+    
+    uint nV = end_id - base_id;
+
+    for (int i=0; i<nV; ++i)
+      total_divB += 0.5 * cell_volumes[i] * divB[i];
+
+    base_id += vec_size;
+  }
+  return total_divB;
+}
+
+/**
  * Returns the maximum Mach number of the domain
  * @return the maximum Mach number of the flowin the domain
  **/
@@ -1186,6 +1253,15 @@ RealArray Snapshot::getMach(UIntArray iCells) {
 }
 
 /**
+ * Extracts the magnetic divergence value from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of magnetic field divergence at each cell
+ **/
+RealArray Snapshot::getDivB(UIntArray iCells) {
+  return probeCells<double>(iCells, "divB");
+}
+
+/**
  * Extracts the momentum from a list of cells
  * @param iCells the ids of the cells to extract
  * @return a vector of momenta for each cell
@@ -1206,6 +1282,26 @@ VecArray Snapshot::getMomentum(UIntArray iCells) {
   return out;
 }
 
+/**
+ * Extracts the magnetic field from a list of cells
+ * @param iCells the ids of the cells to extract
+ * @return a vector of magnetic field for each cell
+ **/
+VecArray Snapshot::getMagneticField(UIntArray iCells) {
+  RealArray res[3];
+  res[0] = probeCells<double>(iCells, "Bx");
+  res[1] = probeCells<double>(iCells, "By");
+  if (nDim == 3)
+    res[2] = probeCells<double>(iCells, "Bz");
+
+  // Ewwwww ...
+  VecArray out(iCells.size());
+  for (uint i=0; i < iCells.size(); ++i)
+    for (int j=0; j < nDim; ++j)
+      out[i][j] = res[j][i];
+
+  return out;
+}
 /**
  * Extracts the velocities from a list of cells
  * @param iCells the ids of the cells to extract

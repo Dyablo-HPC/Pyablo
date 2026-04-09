@@ -117,6 +117,8 @@ class Snapshot {
   double getTotalEnergy();
   double getTotalInternalEnergy(double gamma);
   double getTotalKineticEnergy();
+  double getTotalMagneticEnergy();
+  double getTotalMagneticDivergence();
   double getMaxMach();
   double getAverageMach();
 
@@ -142,6 +144,8 @@ class Snapshot {
   RealArray getTotalEnergy(UIntArray iCells);
   RealArray getMach(UIntArray iCells);
   VecArray  getMomentum(UIntArray iCells);
+  VecArray  getMagneticField(UIntArray iCells);
+  RealArray getDivB(UIntArray iCells);
   VecArray  getVelocity(UIntArray iCells);
   IntArray  getLevel(UIntArray iCells);
   IntArray  getRank(UIntArray iCells);
