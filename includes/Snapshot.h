@@ -86,7 +86,7 @@ class Snapshot {
   VecArray   getCellSize(UIntArray iCells);
   RealArray  getCellVolume(UIntArray iCells);
   VecArray   getUniqueCells(VecArray pos);
-  VecArray   getGridVertex(std::vector<uint> sortingMask, std::array<uint, 2> shape);
+  VecArray   getGridVertex(std::vector<uint> sortingMask, std::vector<uint> shape);
 
   /** Domain info **/
   int getNCells();

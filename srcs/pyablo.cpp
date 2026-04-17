@@ -39,6 +39,7 @@ PYBIND11_MODULE(pyablo, m) {
     .def("getCellsCenter", static_cast<std::vector<Vec> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellCenter))
     .def("getCellsSize",   static_cast<std::vector<Vec> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellSize))
     .def("getCellsVolume", static_cast<std::vector<double> (Snapshot::*)(std::vector<uint>)>(&Snapshot::getCellVolume))
+    .def("getGridVertex",  static_cast<std::vector<Vec> (Snapshot::*)(std::vector<uint>, std::vector<uint>)>(&Snapshot::getGridVertex))
 
     .def("probeQuantity",   static_cast<std::vector<double> (Snapshot::*)(std::vector<Vec>, std::string)>(&Snapshot::probeQuantity))
     .def("probeDensity",    static_cast<std::vector<double> (Snapshot::*)(std::vector<Vec>)>(&Snapshot::probeDensity))

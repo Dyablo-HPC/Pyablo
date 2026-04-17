@@ -387,65 +387,99 @@ VecArray Snapshot::getCellCenter(UIntArray iCells) {
 }
 
 /**
- * Returns the vertex of the grid in order for pcolor
- * @param sortingMask output of the function getSortingMask2d
- * @param shape, grid size : (Ny, Nx)
+ * Returns the vertex of the grid in order for pcolor (2D) or volumetric rendering (3D)
+ * @param sortingMask output of the function getSortingMask
+ * @param shape grid size : {Ny, Nx} or {Nz, Ny, Nx}
  * @return a vector of positions corresponding to the vertex of the grid
  **/
-VecArray Snapshot::getGridVertex(std::vector<uint> sortingMask, std::array<uint, 2> shape) {
-  const auto [Ny, Nx] = shape;
-  VecArray out((Ny+1) * (Nx+1));
+VecArray Snapshot::getGridVertex(std::vector<uint> sortingMask, std::vector<uint> shape) {
+    const size_t dim = shape.size();
+    
+    if (dim == 2) {
+        const uint Ny = shape[0];
+        const uint Nx = shape[1];
+        VecArray out((Ny + 1) * (Nx + 1));
 
-  // take the top left vertex of each cell
-  #pragma omp parallel for schedule(dynamic) collapse(2)
-  for (int i=0; i < Ny; ++i) {
-    for (int j=0; j < Nx; ++j) {
-      uint iCell = sortingMask[i*Nx + j];
-      int ci = index_buffer[iCell*nElems];
-      double *coords = &vertex_buffer[ci*CoordSize];
+        #pragma omp parallel for schedule(dynamic) collapse(2)
+        for (uint i = 0; i <= Ny; ++i) {
+            for (uint j = 0; j <= Nx; ++j) {
+                // Détermination de la cellule de référence et du sommet local
+                // On prend la cellule à "droite/bas" du nœud, sauf aux bordures max.
+                uint cellI = std::min(i, Ny - 1);
+                uint cellJ = std::min(j, Nx - 1);
+                
+                uint iCell = sortingMask[cellI * Nx + cellJ];
+                
+                // Mapping du sommet local (0:TL, 1:TR, 2:BR, 3:BL)
+                uint localVertex = 0;
+                if (i == Ny && j == Nx) localVertex = 2;      // Coin bas-droit
+                else if (i == Ny)      localVertex = 3;      // Bordure bas
+                else if (j == Nx)      localVertex = 1;      // Bordure droite
+                else                   localVertex = 0;      // Standard (Top-Left)
 
-      out[i*(Nx+1) + j][0] = coords[0];
-      out[i*(Nx+1) + j][1] = coords[1];
-      out[i*(Nx+1) + j][2] = 0;
+                uint ci = index_buffer[iCell * nElems + localVertex];
+                double *coords = &vertex_buffer[ci * CoordSize];
+
+                auto& node = out[i * (Nx + 1) + j];
+                node[0] = coords[0];
+                node[1] = coords[1];
+                node[2] = (CoordSize > 2) ? coords[2] : 0.0;
+            }
+        }
+        return out;
+    } 
+    else if (dim == 3) {
+        const uint Nz = shape[0];
+        const uint Ny = shape[1];
+        const uint Nx = shape[2];
+        VecArray out((Nz + 1) * (Ny + 1) * (Nx + 1));
+
+        #pragma omp parallel for schedule(dynamic) collapse(3)
+        for (uint k = 0; k <= Nz; ++k) {
+            for (uint i = 0; i <= Ny; ++i) {
+                for (uint j = 0; j <= Nx; ++j) {
+                    uint cellK = std::min(k, Nz - 1);
+                    uint cellI = std::min(i, Ny - 1);
+                    uint cellJ = std::min(j, Nx - 1);
+
+                    uint iCell = sortingMask[(cellK * Ny + cellI) * Nx + cellJ];
+
+                    /** * Mapping pour un Hexaèdre standard (0-3 face avant, 4-7 face arrière)
+                     * 0: Front-TL, 1: Front-TR, 2: Front-BR, 3: Front-BL
+                     * 4: Back-TL,  5: Back-TR,  6: Back-BR,  7: Back-BL
+                     **/
+                    uint localVertex = 0;
+                    bool isRight  = (j == Nx);
+                    bool isBottom = (i == Ny);
+                    bool isBack   = (k == Nz);
+
+                    if (!isBack) {
+                        if (!isBottom && !isRight) localVertex = 0;
+                        else if (!isBottom && isRight) localVertex = 1;
+                        else if (isBottom && isRight)  localVertex = 2;
+                        else if (isBottom && !isRight) localVertex = 3;
+                    } else {
+                        if (!isBottom && !isRight) localVertex = 4;
+                        else if (!isBottom && isRight) localVertex = 5;
+                        else if (isBottom && isRight)  localVertex = 6;
+                        else if (isBottom && !isRight) localVertex = 7;
+                    }
+
+                    uint ci = index_buffer[iCell * nElems + localVertex];
+                    double *coords = &vertex_buffer[ci * CoordSize];
+
+                    auto& node = out[(k * (Ny + 1) + i) * (Nx + 1) + j];
+                    node[0] = coords[0];
+                    node[1] = coords[1];
+                    node[2] = coords[2];
+                }
+            }
+        }
+        return out;
     }
-  }
-  
-  // right boundaries
-  #pragma omp parallel for schedule(dynamic)
-  for (int i=0; i < Ny; ++i) {
-    uint iCell = sortingMask[i*Nx + Nx-1];
-    int ci = index_buffer[iCell*nElems+1];
-    double *coords = &vertex_buffer[ci*CoordSize];
-
-    out[i*(Nx+1) + Nx][0] = coords[0];
-    out[i*(Nx+1) + Nx][1] = coords[1];
-    out[i*(Nx+1) + Nx][2] = 0;
-  }
-
-  // bottom boundaries
-  #pragma omp parallel for schedule(dynamic)
-  for (int j=0; j < Nx; ++j) {
-    uint iCell = sortingMask[(Ny-1)*Nx + j];
-    int ci = index_buffer[iCell*nElems+3];
-    double *coords = &vertex_buffer[ci*CoordSize];
-
-    out[Ny*(Nx+1) + j][0] = coords[0];
-    out[Ny*(Nx+1) + j][1] = coords[1];
-    out[Ny*(Nx+1) + j][2] = 0;
-  }
-
-  // bottom right vertex
-  uint iCell = sortingMask[Ny*Nx -1];
-  int ci = index_buffer[iCell*nElems+2];
-  double *coords = &vertex_buffer[ci*CoordSize];
-
-  out[(Ny+1)*(Nx+1) - 1][0] = coords[0];
-  out[(Ny+1)*(Nx+1) - 1][1] = coords[1];
-  out[(Ny+1)*(Nx+1) - 1][2] = 0;
-
-  return out;
+    
+    return VecArray(); // Cas non géré
 }
-
 
 /**
  * Returns the size of a cell
